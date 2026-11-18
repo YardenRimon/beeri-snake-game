@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>עולם הנחשים של בארי 🐍</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- סרגל עליון (HUD) -->
+  <header id="hud">
+    <div class="hud-group">
+      <div class="stat-pill world-pill" id="worldDisplay" title="עולם נוכחי">
+        🌍 עולם <span id="worldNum">1</span>/50
+      </div>
+      <div class="stat-pill snakes-pill" title="נחשים שנותרו בעולם זה">
+        🐍 נותרו: <span id="snakesLeft">0</span>
+      </div>
+      <div class="stat-pill level-pill" title="רמת הנחש והצורה שלו">
+        ⭐ רמה <span id="playerLevel">1</span> (<span id="shapeName">עיגולים</span>)
+      </div>
+    </div>
+
+    <div class="hud-group center-hud">
+      <div class="hp-container" title="מד חיים של הנחש">
+        <span>❤️ חיים:</span>
+        <div class="hp-bar-bg">
+          <div id="hpBarFill" class="hp-bar-fill"></div>
+        </div>
+        <span id="hpText">100/100</span>
+      </div>
+    </div>
+
+    <div class="hud-group">
+      <div class="stat-pill money-pill" title="כסף (שקלים)">
+        💵 <span id="moneyCount">10</span> ₪
+      </div>
+      <div class="stat-pill diamond-pill" title="יהלומים">
+        💎 <span id="diamondCount">15</span>
+      </div>
+      <button id="shopBtn" class="action-btn shop-btn">🛒 חנות שדרוגים</button>
+      <button id="worldSelectBtn" class="action-btn world-btn hidden">🗺️ בחירת עולם</button>
+      <button id="dayNightBtn" class="icon-btn" title="מחזור יום/לילה (24 שעות - לחץ להחלפה)">☀️</button>
+      <button id="resetBtn" class="icon-btn" title="איפוס שמירה והתחלה מחדש">🔄</button>
+    </div>
+  </header>
+
+  <!-- הודעות צפות (אכילה, מעבר עולם, חזרה לבית) -->
+  <div id="toastContainer"></div>
+
+  <!-- קנבס המשחק -->
+  <main id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- מדריך מקשים מהיר על המסך -->
+    <div id="controlsHint">
+      <div><strong>איך משחקים:</strong></div>
+      <div>🖱️ <strong>עכבר:</strong> כיוון הנחש + קליק לירי ארס/לייזר</div>
+      <div>➡️ <strong>חץ ימינה / W:</strong> התקדמות | ⬅️ <strong>חץ שמאלה / S:</strong> תנועה אחורה</div>
+      <div>⬆️ <strong>חץ למעלה / רווח:</strong> קפיצה מעל מכשולים ונחלים</div>
+      <div>⬇️ <strong>חץ למטה:</strong> נשיכה חזקה של נחש שלידך</div>
+      <div>🌳 <strong>טיפ:</strong> שדרג ארס וירה על עצים ליד הנהר כדי להפיל גשר!</div>
+    </div>
+
+    <!-- פקדי מגע לטלפון / מסך מגע -->
+    <div id="mobileControls">
+      <div class="joystick-zone" id="joystickZone">
+        <div class="joystick-knob" id="joystickKnob"></div>
+      </div>
+      <div class="mobile-buttons">
+        <button id="btnJump" class="mob-btn jump">⬆️ קפיצה</button>
+        <button id="btnBite" class="mob-btn bite">⬇️ נשיכה</button>
+        <button id="btnShoot" class="mob-btn shoot">🎯 ירי ארס/לייזר</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- מודאל חנות שדרוגים -->
+  <div id="shopModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🛒 חנות השדרוגים והנחשים העוזרים</h2>
+        <div class="modal-currencies">
+          <span>💵 <strong id="shopMoney">10</strong> ₪</span>
+          <span>💎 <strong id="shopDiamonds">15</strong></span>
+        </div>
+        <button id="closeShopBtn" class="close-btn">✖</button>
+      </div>
+
+      <div class="shop-tabs">
+        <div class="shop-section">
+          <h3>💪 שדרוגי יכולות וציוד</h3>
+          <div id="upgradesList" class="shop-grid"></div>
+        </div>
+
+        <div class="shop-section">
+          <h3>🐍 נחשים עוזרים וחליפות</h3>
+          <div id="helpersList" class="shop-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- מודאל בחירת עולמות (נפתח בעולם 50 או לבדיקה) -->
+  <div id="worldsModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🗺️ מסע חופשי בין העולמות (1–50)</h2>
+        <button id="closeWorldsBtn" class="close-btn">✖</button>
+      </div>
+      <p class="modal-subtitle">בחר כל עולם שתרצה לבקר בו ולשחק בו חופשי:</p>
+      <div id="worldsGrid" class="worlds-grid"></div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

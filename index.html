@@ -11,7 +11,7 @@
   <header id="hud">
     <div class="hud-group">
       <div class="stat-pill world-pill" id="worldDisplay" title="עולם נוכחי">
-        🌍 עולם <span id="worldNum">1</span>/50
+        🌍 עולם <span id="worldNum">1</span>/150 <span id="worldBiome"></span>
       </div>
       <div class="stat-pill snakes-pill" title="נחשים שנותרו בעולם זה">
         🐍 נותרו: <span id="snakesLeft">0</span>
@@ -39,6 +39,8 @@
         💎 <span id="diamondCount">15</span>
       </div>
       <button id="shopBtn" class="action-btn shop-btn">🛒 חנות שדרוגים</button>
+      <button id="questsBtn" class="action-btn quest-btn" title="משימות לפרס כסף ויהלומים">📜 משימות</button>
+      <button id="difficultyBtn" class="action-btn diff-btn diff-hard" title="שינוי רמת קושי (רגיל / קשה / מטורף)">🔥 קשה</button>
       <button id="dayNightBtn" class="icon-btn" title="מחזור יום/לילה (24 שעות - לחץ להחלפה)">☀️</button>
       <button id="resetBtn" class="icon-btn" title="איפוס שמירה והתחלה מחדש">🔄</button>
     </div>
@@ -56,9 +58,9 @@
       <div><strong>איך משחקים:</strong></div>
       <div>🖱️ <strong>עכבר:</strong> כיוון הנחש + קליק לירי ארס/לייזר</div>
       <div>➡️ <strong>חץ ימינה / W:</strong> התקדמות | ⬅️ <strong>חץ שמאלה / S:</strong> תנועה אחורה</div>
-      <div>⬆️ <strong>חץ למעלה / רווח:</strong> קפיצה מעל מכשולים ונחלים</div>
-      <div>⬇️ <strong>חץ למטה:</strong> נשיכה חזקה של נחש שלידך</div>
-      <div>🌳 <strong>טיפ:</strong> שדרג ארס וירה על עצים ליד הנהר כדי להפיל גשר!</div>
+      <div>⬆️ <strong>חץ למעלה / רווח:</strong> קפיצה להתחמקות מנחשים וארס</div>
+      <div>⬇️ <strong>חץ למטה:</strong> נשיכה חזקה של נחש או עץ שלידך</div>
+      <div>🌳 <strong>טיפ:</strong> אי אפשר לקפוץ מעל הנהר – הפל קודם עץ (נשיכה או ארס) לגשר!</div>
     </div>
 
     <!-- פקדי מגע לטלפון / מסך מגע -->
@@ -97,6 +99,21 @@
           <div id="helpersList" class="shop-grid"></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- מודאל משימות -->
+  <div id="questsModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>📜 משימות לפרס כסף ויהלומים</h2>
+        <div class="modal-currencies">
+          <span>🏆 הושלמו: <strong id="completedQuestsCount">0</strong></span>
+        </div>
+        <button id="closeQuestsBtn" class="close-btn">✖</button>
+      </div>
+      <p class="modal-subtitle">בצע משימות במפה וקבל כסף ויהלומים מיד עם ההשלמה!</p>
+      <div id="questsList" class="shop-grid"></div>
     </div>
   </div>
 

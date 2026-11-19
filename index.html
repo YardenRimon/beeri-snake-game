@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>עולם הנחשים של בארי 🐍</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#111b14" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="נחשי בארי" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -42,6 +50,7 @@
       <button id="questsBtn" class="action-btn quest-btn" title="משימות לפרס כסף ויהלומים">📜 משימות</button>
       <button id="recordsBtn" class="action-btn records-btn" title="טבלת השיאים האישיים שלך">🏆 שיאים</button>
       <button id="duelBtn" class="action-btn duel-btn" title="קרב חי אחד נגד השני בסריקת ברקוד QR">📱 קרב QR</button>
+      <button id="installBtn" class="action-btn install-btn" title="הורד והתקן את המשחק כאפליקציה בדף הבית">📲 התקן</button>
       <button id="difficultyBtn" class="action-btn diff-btn diff-hard" title="שינוי רמת קושי (רגיל / קשה / מטורף)">🔥 קשה</button>
       <button id="dayNightBtn" class="icon-btn" title="מחזור יום/לילה (24 שעות - לחץ להחלפה)">☀️</button>
       <button id="soundBtn" class="icon-btn" title="הפעלת / השתקת צלילים ואפקטי קול">🔊</button>
@@ -235,6 +244,23 @@
       <div class="duel-actions-row">
         <button id="duelRematchBtn" class="buy-btn" type="button">🔄 סיבוב נוסף!</button>
         <button id="duelExitAfterResultBtn" class="buy-btn duel-exit-btn" type="button">🚪 חזרה למשחק רגיל</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- מודאל התקנת המשחק כאפליקציה לדף הבית (PWA) -->
+  <div id="installModal" class="modal hidden">
+    <div class="modal-content install-modal-card">
+      <div class="modal-header">
+        <h2>📲 הוסף את המשחק לדף הבית כאפליקציה</h2>
+        <button id="closeInstallBtn" class="close-btn">✖</button>
+      </div>
+      <img src="icon-192.png" alt="סמל עולם הנחשים של בארי" class="install-app-icon" />
+      <p class="install-lead">התקינו את <strong>"עולם הנחשים של בארי"</strong> עם סמל משלו על מסך הבית בטלפון — נפתח במסך מלא כמו אפליקציה אמיתית ועובד גם בלי אינטרנט!</p>
+      <button id="pwaInstallActionBtn" class="buy-btn install-primary-btn" type="button">📲 התקן לדף הבית עכשיו</button>
+      <div id="installInstructionsBox" class="install-steps-box">
+        <div><strong>🤖 באנדרואיד (Chrome):</strong> לחצו על הכפתור הירוק למעלה, או על <strong>⋮</strong> (שלוש נקודות למעלה) ← <strong>"הוסף למסך הבית" / "התקן אפליקציה"</strong>.</div>
+        <div><strong>🍎 באייפון / אייפד (Safari):</strong> לחצו על כפתור השיתוף <strong>⬆️</strong> בתחתית המסך ← גללו ובחרו <strong>"הוסף למסך הבית" (Add to Home Screen)</strong> ➕ ← <strong>"הוסף"</strong>.</div>
       </div>
     </div>
   </div>

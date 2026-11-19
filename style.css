@@ -134,6 +134,10 @@ body, html {
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
 }
 
+.diff-btn.diff-easy {
+  background: linear-gradient(135deg, #66bb6a, #2e7d32);
+}
+
 .diff-btn.diff-normal {
   background: linear-gradient(135deg, #26a69a, #00796b);
 }

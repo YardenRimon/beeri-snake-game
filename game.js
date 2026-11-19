@@ -296,6 +296,197 @@ function createWorldEagle() {
 }
 
 let goldCannonCooldowns = [0, 15, 30, 45];
+let comboStreak = 0; // רצף ציד של 3 נחשים בלי למות = +20₪ +20💎
+let ambientSoundTimer = 180;
+let rareEgg = null;
+
+function createRareEgg(delaySec = 4) {
+  return {
+    x: RIVER.x + RIVER.width + 240 + Math.random() * (WORLD_WIDTH - RIVER.x - RIVER.width - 380),
+    y: 220 + Math.random() * (WORLD_HEIGHT - 440),
+    carried: false,
+    respawnTimer: delaySec * 60
+  };
+}
+
+// ============================================================================
+// מערכת אפקטי קול וצלילי טבע (Web Audio API – ללא צורך בקבצים חיצוניים)
+// ============================================================================
+const SOUND_KEY = 'beeri_snake_sound_v1';
+const SFX = {
+  ctx: null,
+  master: null,
+  noiseBuf: null,
+  enabled: localStorage.getItem(SOUND_KEY) !== 'off',
+
+  unlock() {
+    if (!this.enabled) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!this.ctx) {
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.45;
+        this.master.connect(this.ctx.destination);
+        const len = Math.floor(this.ctx.sampleRate * 0.5);
+        this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const data = this.noiseBuf.getChannelData(0);
+        for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      }
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+    } catch (_) {}
+  },
+
+  toggle() {
+    this.enabled = !this.enabled;
+    localStorage.setItem(SOUND_KEY, this.enabled ? 'on' : 'off');
+    if (this.enabled) {
+      this.unlock();
+      this.tone(660, 880, 0.11, 'sine', 0.2);
+    }
+    return this.enabled;
+  },
+
+  tone(f1, f2, dur = 0.12, type = 'sine', vol = 0.25, delay = 0) {
+    if (!this.enabled) return;
+    this.unlock();
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    try {
+      const t = this.ctx.currentTime + delay;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(Math.max(40, f1), t);
+      if (f2 !== f1) osc.frequency.exponentialRampToValueAtTime(Math.max(40, f2), t + dur);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(g);
+      g.connect(this.master);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    } catch (_) {}
+  },
+
+  noise(fStart, fEnd, dur = 0.14, q = 2, vol = 0.22, filterType = 'bandpass', delay = 0) {
+    if (!this.enabled) return;
+    this.unlock();
+    if (!this.ctx || !this.noiseBuf || this.ctx.state !== 'running') return;
+    try {
+      const t = this.ctx.currentTime + delay;
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.noiseBuf;
+      const flt = this.ctx.createBiquadFilter();
+      flt.type = filterType;
+      flt.Q.value = q;
+      flt.frequency.setValueAtTime(Math.max(60, fStart), t);
+      if (fEnd !== fStart) flt.frequency.exponentialRampToValueAtTime(Math.max(60, fEnd), t + dur);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      src.connect(flt);
+      flt.connect(g);
+      g.connect(this.master);
+      src.start(t);
+      src.stop(t + dur + 0.02);
+    } catch (_) {}
+  },
+
+  bite() {
+    this.tone(240, 82, 0.09, 'triangle', 0.34);
+    this.noise(950, 320, 0.08, 3, 0.24);
+  },
+
+  tailWhip() {
+    this.noise(340, 2200, 0.15, 2.2, 0.32);
+    this.noise(2000, 480, 0.08, 2.5, 0.24, 'bandpass', 0.09);
+  },
+
+  jump() {
+    this.tone(210, 560, 0.14, 'sine', 0.22);
+  },
+
+  land() {
+    this.tone(135, 48, 0.095, 'triangle', 0.28);
+    this.noise(450, 160, 0.065, 1.4, 0.14, 'lowpass');
+  },
+
+  venom() {
+    this.noise(1500, 550, 0.11, 2.8, 0.22);
+    this.tone(540, 210, 0.09, 'sine', 0.16);
+  },
+
+  laser() {
+    this.tone(1150, 230, 0.11, 'sawtooth', 0.16);
+  },
+
+  miniCannon() {
+    this.tone(420, 175, 0.055, 'triangle', 0.11);
+  },
+
+  sprint() {
+    this.noise(420, 1450, 0.18, 1.8, 0.2);
+    this.tone(320, 640, 0.16, 'sine', 0.18);
+  },
+
+  treeFall() {
+    this.tone(190, 55, 0.26, 'sawtooth', 0.22);
+    this.noise(360, 120, 0.25, 1.2, 0.26, 'lowpass', 0.05);
+  },
+
+  eat() {
+    this.tone(660, 990, 0.11, 'sine', 0.22);
+    this.tone(880, 1175, 0.12, 'sine', 0.18, 0.07);
+  },
+
+  victory() {
+    [523, 659, 784, 1046].forEach((hz, idx) => {
+      this.tone(hz, hz, 0.14, 'triangle', 0.22, idx * 0.09);
+    });
+  },
+
+  eagle() {
+    this.tone(2450, 1480, 0.18, 'sawtooth', 0.14);
+    this.tone(2100, 1180, 0.22, 'sawtooth', 0.12, 0.19);
+  },
+
+  burrowZap() {
+    this.tone(760, 410, 0.075, 'sine', 0.13);
+  },
+
+  hurt() {
+    this.tone(240, 95, 0.19, 'sawtooth', 0.22);
+  },
+
+  playAmbient(decor, night, nearRiver) {
+    if (!this.enabled) return;
+    if (nearRiver && Math.random() < 0.45) {
+      this.noise(900, 520, 0.22, 3.5, 0.06);
+      return;
+    }
+    if (night) {
+      // צרצרי לילה עדינים
+      for (let c = 0; c < 3; c++) {
+        this.tone(4100, 4250, 0.035, 'sine', 0.045, c * 0.07);
+      }
+      return;
+    }
+    if (decor === 'forest' || decor === 'meadow' || decor === 'savanna') {
+      const f = 2200 + Math.random() * 900;
+      this.tone(f, f * 1.24, 0.06, 'sine', 0.07);
+      this.tone(f * 1.15, f * 1.38, 0.07, 'sine', 0.06, 0.1);
+    } else if (decor === 'beach') {
+      this.noise(240, 620, 0.48, 0.9, 0.07, 'lowpass');
+    } else if (decor === 'swamp') {
+      this.tone(190, 295, 0.07, 'triangle', 0.09);
+      this.tone(180, 275, 0.07, 'triangle', 0.08, 0.13);
+    } else if (decor === 'lava') {
+      this.tone(95, 165, 0.12, 'sine', 0.09);
+    } else {
+      this.noise(280, 520, 0.42, 2.2, 0.06);
+    }
+  }
+};
 
 // מחזור יום ולילה (24 שעות לפי השעון האמיתי, עם אפשרות החלפה ידנית)
 let manualNightOverride = null;
@@ -323,6 +514,8 @@ const player = {
   shootCooldown: 0,
   invulnerableTimer: 0,
   hazardCooldown: 0,
+  sprintTimer: 0,
+  sprintEnergy: 100,
   segments: []
 };
 
@@ -404,6 +597,7 @@ function initWorld(worldNum) {
   bossSpawnedThisWorld = false;
   crossedRiverThisWorld = false;
   worldEagle = createWorldEagle();
+  rareEgg = createRareEgg(3);
   ensureQuests();
   saveState();
 
@@ -537,6 +731,7 @@ function knockDownTree(tree) {
   tree.fallen = true;
   tree.hp = 0;
   bridges.push({ x: RIVER.x, y: tree.y, width: RIVER.width });
+  SFX.treeFall();
   spawnParticles(tree.x, tree.y, '#8d6e63', 18);
   addFloatingText(tree.x, tree.y - 30, '🪵 גשר נוצר!', '#ffe082');
   showToast('🪵 העץ נפל על הנהר ויצר גשר למעבר בטוח!');
@@ -639,6 +834,7 @@ function getCameraZoom() {
 }
 
 window.addEventListener('keydown', (e) => {
+  SFX.unlock();
   keys[e.code] = true;
 
   if (e.code === 'ArrowUp' || e.code === 'Space') {
@@ -652,6 +848,10 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyE' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
     e.preventDefault();
     triggerTailWhip();
+  }
+  if (e.code === 'KeyF') {
+    e.preventDefault();
+    triggerSprint();
   }
 });
 
@@ -784,6 +984,21 @@ bindMobileButton('btnJump', triggerJump);
 bindMobileButton('btnBite', triggerBite);
 bindMobileButton('btnShoot', triggerShoot);
 bindMobileButton('btnTailWhip', triggerTailWhip);
+bindMobileButton('btnSprint', triggerSprint);
+window.addEventListener('pointerdown', () => SFX.unlock(), { passive: true });
+
+function triggerSprint() {
+  if (player.sprintTimer > 0) return;
+  if (player.sprintEnergy < 95) {
+    addFloatingText(player.x, player.y - 26, '⚡ האנרגיה נטענת...', '#81d4fa');
+    return;
+  }
+  player.sprintTimer = 120; // 2 שניות ספרינט מהיר
+  player.sprintEnergy = 100;
+  SFX.sprint();
+  spawnParticles(player.x, player.y, '#40c4ff', 14);
+  addFloatingText(player.x, player.y - 30, '⚡ ספרינט מהיר!', '#ffd600');
+}
 
 // ============================================================================
 // פעולות השחקן: קפיצה (חץ למעלה), נשיכה (חץ למטה), הצלפת זנב וירי ארס/לייזר
@@ -791,6 +1006,7 @@ bindMobileButton('btnTailWhip', triggerTailWhip);
 function triggerTailWhip() {
   if (player.tailWhipCooldown > 0) return;
   player.tailWhipCooldown = 28;
+  SFX.tailWhip();
   const stats = getPlayerStats();
   const tail = player.segments[player.segments.length - 1] || player;
   const centerX = (player.x + tail.x) / 2;
@@ -806,13 +1022,19 @@ function triggerTailWhip() {
 
   if (duel.active) {
     duel.whipPulseFrames = 14;
-    if (!duel.roundOver) {
-      const dHead = Math.hypot(duel.opponent.x - player.x, duel.opponent.y - player.y);
-      const dTail = Math.hypot(duel.opponent.x - tail.x, duel.opponent.y - tail.y);
-      if (Math.min(dHead, dTail) <= 145 && duel.opponent.jumpZ < 8) {
-        const pushAng = Math.atan2(duel.opponent.y - centerY, duel.opponent.x - centerX);
-        sendDuelHit(20, Math.cos(pushAng) * 65, Math.sin(pushAng) * 65, '🌀 הצלפה!');
-      } else {
+    if (!duel.roundOver && !duel.eliminated) {
+      let hitAny = false;
+      for (const peer of Object.values(duel.peers)) {
+        if (peer.dead || peer.jumpZ >= 8) continue;
+        const dHead = Math.hypot(peer.x - player.x, peer.y - player.y);
+        const dTail = Math.hypot(peer.x - tail.x, peer.y - tail.y);
+        if (Math.min(dHead, dTail) <= 145) {
+          const pushAng = Math.atan2(peer.y - centerY, peer.x - centerX);
+          sendDuelHit(peer.id, 20, Math.cos(pushAng) * 65, Math.sin(pushAng) * 65, '🌀 הצלפה!');
+          hitAny = true;
+        }
+      }
+      if (!hitAny) {
         addFloatingText(tail.x, tail.y - 20, '🌀 הצלפה!', '#ffcc80');
       }
     }
@@ -854,6 +1076,7 @@ function triggerTailWhip() {
 function triggerJump() {
   if (player.jumpZ === 0) {
     player.jumpVz = 9.5;
+    SFX.jump();
     spawnParticles(player.x, player.y, '#ffffff', 10);
     addFloatingText(player.x, player.y - 25, '⬆️ קפיצה!', '#81d4fa');
     if (!duel.active) recordQuestProgress('jumps', 1);
@@ -864,16 +1087,21 @@ function triggerBite() {
   if (player.biteCooldown > 0) return;
   player.biteCooldown = 15;
   player.biteAnim = 12;
+  SFX.bite();
 
   if (duel.active) {
-    if (!duel.roundOver) {
-      const dOpp = Math.hypot(duel.opponent.x - player.x, duel.opponent.y - player.y);
-      if (dOpp <= 98 && duel.opponent.jumpZ < 8) {
-        const dmg = state.upgrades.hasArtificialTeeth ? 28 : 24;
-        const pushAng = Math.atan2(duel.opponent.y - player.y, duel.opponent.x - player.x);
-        sendDuelHit(dmg, Math.cos(pushAng) * 28, Math.sin(pushAng) * 28, '🦷 נשיכה!');
-        return;
+    if (!duel.roundOver && !duel.eliminated) {
+      let hitAny = false;
+      for (const peer of Object.values(duel.peers)) {
+        if (peer.dead || peer.jumpZ >= 8) continue;
+        if (Math.hypot(peer.x - player.x, peer.y - player.y) <= 98) {
+          const dmg = state.upgrades.hasArtificialTeeth ? 28 : 24;
+          const pushAng = Math.atan2(peer.y - player.y, peer.x - player.x);
+          sendDuelHit(peer.id, dmg, Math.cos(pushAng) * 28, Math.sin(pushAng) * 28, '🦷 נשיכה!');
+          hitAny = true;
+        }
       }
+      if (hitAny) return;
     }
     addFloatingText(player.x, player.y - 30, '🦷 נשיכה!', '#ffd54f');
     return;
@@ -915,9 +1143,11 @@ function triggerShoot() {
   const stats = getPlayerStats();
   const isLaser = state.upgrades.hasLaserSuit;
   player.shootCooldown = isLaser ? 11 : 18;
+  if (isLaser) SFX.laser();
+  else SFX.venom();
 
   if (duel.active) {
-    fireDuelProjectile(isLaser);
+    if (!duel.eliminated) fireDuelProjectile(isLaser);
     return;
   }
 
@@ -1016,6 +1246,21 @@ function eatEnemy(enemyIndex, options = {}) {
   if (en.isBoss) state.bossesDefeated = (state.bossesDefeated || 0) + 1;
   state.score = (state.score || 0) + (en.isBoss ? 250 : 25 * en.level);
 
+  // בונוס רצף ציד: כל 3 נחשים בלי להיפסל/למות = +20₪ ו-+20💎!
+  comboStreak++;
+  if (comboStreak >= 3) {
+    comboStreak = 0;
+    state.money += 20;
+    state.diamonds += 20;
+    SFX.victory();
+    spawnParticles(player.x, player.y, '#00e5ff', 28);
+    addFloatingText(player.x, player.y - 48, '🔥 רצף 3! +20₪ +20💎', '#ffd600');
+    showToast('🔥 רצף ציד של 3 נחשים בלי למות! קיבלת בונוס +20₪ ו-+20💎!');
+  } else {
+    if (en.isBoss) SFX.victory();
+    else SFX.eat();
+  }
+
   records.totalSnakesEaten = (records.totalSnakesEaten || 0) + 1;
   if (en.isBoss) records.totalBossesDefeated = (records.totalBossesDefeated || 0) + 1;
   updatePersonalRecords();
@@ -1059,6 +1304,7 @@ function checkWorldProgress() {
       player.segments.push({ x: tail.x + Math.cos(ang) * 12, y: tail.y + Math.sin(ang) * 12 });
     }
     updatePersonalRecords();
+    SFX.victory();
     showToast(`🎉 השלמת 3 עולמות ועלית לרמה ${state.level}! הנחש השתנה ל-${newStyle.name}!`);
     spawnParticles(player.x, player.y, newStyle.primary, 35);
   }
@@ -1077,11 +1323,19 @@ function checkWorldProgress() {
 
 function sendPlayerHome(reason) {
   recordCompletedRun();
+  SFX.hurt();
+  comboStreak = 0;
+  if (rareEgg && rareEgg.carried) {
+    rareEgg = createRareEgg(6);
+    showToast('💔 הביצה הנדירה נאבדה בדרך! תוכל לנסות שוב מעבר לנהר.');
+  }
   spawnParticles(player.x, player.y, '#ff1744', 25);
   player.x = HOME_BASE.x;
   player.y = HOME_BASE.y;
   player.hp = player.maxHp;
   player.jumpZ = 0;
+  player.jumpVz = 0;
+  player.sprintTimer = 0;
   player.invulnerableTimer = 90;
   initPlayerSegments();
   updateHUD();
@@ -1168,18 +1422,37 @@ function update() {
   mouse.worldX = camera.x + mouse.x / camera.zoom;
   mouse.worldY = camera.y + mouse.y / camera.zoom;
 
-  // קפיצה (ציר Z)
+  // קפיצה ונחיתה (ציר Z)
+  const wasAirborne = player.jumpZ > 0;
   if (player.jumpZ > 0 || player.jumpVz !== 0) {
     player.jumpZ += player.jumpVz;
     player.jumpVz -= 0.55;
     if (player.jumpZ <= 0) {
       player.jumpZ = 0;
       player.jumpVz = 0;
+      if (wasAirborne) {
+        SFX.land();
+        spawnParticles(player.x, player.y, '#cfd8dc', 5);
+      }
     }
   }
 
+  // ספרינט מהיר עם מד אנרגיה (2 שניות זינוק מהיר ואז טעינה מחדש)
+  if (player.sprintTimer > 0) {
+    player.sprintTimer--;
+    player.sprintEnergy = Math.max(0, (player.sprintTimer / 120) * 100);
+    if (Math.random() < 0.45) spawnParticles(player.x, player.y, '#40c4ff', 2);
+  } else if (player.sprintEnergy < 100) {
+    player.sprintEnergy = Math.min(100, player.sprintEnergy + 0.28);
+  }
+  const sprintBtnEl = document.getElementById('btnSprint');
+  const sprintFillEl = document.getElementById('sprintFill');
+  if (sprintFillEl) sprintFillEl.style.width = `${Math.round(player.sprintEnergy)}%`;
+  if (sprintBtnEl) sprintBtnEl.classList.toggle('sprinting', player.sprintTimer > 0);
+
   // תנועת השחקן: מהירות מלאה ואחידה גם בפניות, ללא הליכה הפוכה אחורה
-  applyPlayerMovementInput(stats.baseSpeed);
+  const activeSpeed = player.sprintTimer > 0 ? stats.baseSpeed * 1.58 : stats.baseSpeed;
+  applyPlayerMovementInput(activeSpeed);
 
   let nextX = player.x + Math.cos(player.angle) * player.speed;
   let nextY = player.y + Math.sin(player.angle) * player.speed;
@@ -1208,15 +1481,45 @@ function update() {
   // עדכון חוליות גוף הנחש
   updateSegments(player.segments, player.x, player.y, stats.radius * 0.72);
 
-  // כלל נחש קלאסי: אם הראש נוגע בחלק אחר בגוף שלך – אתה נפסל!
+  // כלל נחש קלאסי: התנגשות בזנב או בגוף של עצמך פוסלת מיד!
   if (player.speed > 0 && player.jumpZ < 6 && player.invulnerableTimer <= 0) {
     for (let i = 4; i < player.segments.length; i++) {
       const seg = player.segments[i];
       const t = i / Math.max(1, player.segments.length - 1);
       const segR = stats.radius * (1 - t * 0.42);
-      if (Math.hypot(seg.x - player.x, seg.y - player.y) < (stats.radius + segR) * 0.72) {
-        sendPlayerHome('התנגשת בגוף של עצמך');
+      const hitFactor = i >= player.segments.length - 3 ? 0.85 : 0.75;
+      if (Math.hypot(seg.x - player.x, seg.y - player.y) < (stats.radius + segR) * hitFactor) {
+        const selfReason = i >= player.segments.length - 3 ? 'התנגשת בזנב של עצמך!' : 'התנגשת בגוף של עצמך';
+        sendPlayerHome(selfReason);
         return;
+      }
+    }
+  }
+
+  // איסוף והבאה למחילה של ביצת הנחש הנדירה מעבר לנהר
+  if (rareEgg) {
+    if (rareEgg.respawnTimer > 0) {
+      rareEgg.respawnTimer--;
+    } else if (!rareEgg.carried) {
+      if (Math.hypot(player.x - rareEgg.x, player.y - rareEgg.y) < stats.radius + 26) {
+        rareEgg.carried = true;
+        SFX.eat();
+        showToast('🥚 תפסת את הביצה הנדירה! סחוב אותה חזרה למחילה שלך בלי למות!');
+        addFloatingText(player.x, player.y - 32, '🥚 הבא למחילה!', '#ffe082');
+      }
+    } else {
+      rareEgg.x = player.x;
+      rareEgg.y = player.y - 10;
+      if (Math.hypot(player.x - HOME_BASE.x, player.y - HOME_BASE.y) < HOME_BASE.radius) {
+        state.money += 25;
+        state.diamonds += 25;
+        SFX.victory();
+        spawnParticles(HOME_BASE.x, HOME_BASE.y, '#ffd600', 30);
+        addFloatingText(HOME_BASE.x, HOME_BASE.y - 40, '🥚 ביצה נדירה! +25₪ +25💎', '#69f0ae');
+        showToast('🥚🏆 הבאת את ביצת הנחש הנדירה למחילה! קיבלת +25₪ ו-+25💎!');
+        rareEgg = createRareEgg(10);
+        saveState();
+        updateHUD();
       }
     }
   }
@@ -1254,6 +1557,17 @@ function update() {
   updateBurrowLaser();
   updateWorldEagle(stats);
   tickTimedQuests();
+
+  // צלילי סביבת טבע אמיתית ברקע
+  ambientSoundTimer--;
+  if (ambientSoundTimer <= 0) {
+    ambientSoundTimer = 220 + Math.floor(Math.random() * 180);
+    const theme = currentWorldTheme || getWorldTheme(state.world);
+    const nearRiver = Math.abs(player.x - (RIVER.x + RIVER.width / 2)) < 260;
+    SFX.playAmbient(theme.decor, isNightTime(), nearRiver);
+  }
+
+  drawMinimap();
 
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
@@ -1674,6 +1988,7 @@ function updateGoldSuitCannons(stats) {
         damage: stats.goldCannonDamage,
         life: 38
       });
+      SFX.miniCannon();
       goldCannonCooldowns[c] = 58 + (c % 2) * 10;
     }
   }
@@ -1708,6 +2023,7 @@ function updateBurrowLaser() {
 
   const mildDmg = 4;
   en.hp -= mildDmg;
+  SFX.burrowZap();
   const pushAng = Math.atan2(en.y - HOME_BASE.y, en.x - HOME_BASE.x);
   en.x = Math.max(80, Math.min(WORLD_WIDTH - 80, en.x + Math.cos(pushAng) * 28));
   en.y = Math.max(80, Math.min(WORLD_HEIGHT - 80, en.y + Math.sin(pushAng) * 28));
@@ -1743,6 +2059,7 @@ function updateWorldEagle(playerStats) {
       worldEagle.swoopTimer = 110;
       worldEagle.swoopDuration = 0;
       worldEagle.dodgeNotified = false;
+      SFX.eagle();
       showToast(
         worldEagle.following
           ? '🦅 זהירות! הנשר של העולם הגיע ועוקב אחריך! התחמק או הסתתר במחילה!'
@@ -2220,6 +2537,32 @@ function draw() {
     ctx.fill();
   }
 
+  // ציור ביצת הנחש הנדירה (מעבר לנהר או על גב השחקן)
+  if (rareEgg && rareEgg.respawnTimer <= 0) {
+    ctx.save();
+    ctx.translate(rareEgg.x, rareEgg.y);
+    ctx.fillStyle = '#fff8e1';
+    ctx.strokeStyle = '#ffd600';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#ffd600';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 12, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#00bfa5';
+    ctx.beginPath();
+    ctx.arc(-3, -4, 3, 0, Math.PI * 2);
+    ctx.arc(4, 3, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#ffe082';
+    ctx.textAlign = 'center';
+    ctx.fillText(rareEgg.carried ? '🥚 למחילה!' : '🥚 ביצה נדירה (+25₪ +25💎)', 0, -22);
+    ctx.restore();
+  }
+
   for (const ft of floatingTexts) {
     ctx.font = 'bold 15px sans-serif';
     ctx.fillStyle = ft.color;
@@ -2695,8 +3038,70 @@ function positionFloatingUI() {
   const hudBottom = hudEl ? hudEl.offsetHeight : 62;
   const sideCard = document.getElementById('levelSideCard');
   const toasts = document.getElementById('toastContainer');
+  const minimap = document.getElementById('minimapCanvas');
   if (sideCard) sideCard.style.top = `${hudBottom + 8}px`;
   if (toasts) toasts.style.top = `${hudBottom + 10}px`;
+  if (minimap) minimap.style.top = `${hudBottom + 8}px`;
+}
+
+function drawMinimap() {
+  const mm = document.getElementById('minimapCanvas');
+  if (!mm || duel.active) return;
+  const mctx = mm.getContext('2d');
+  const w = mm.width;
+  const h = mm.height;
+  const sx = w / WORLD_WIDTH;
+  const sy = h / WORLD_HEIGHT;
+
+  mctx.clearRect(0, 0, w, h);
+  mctx.fillStyle = 'rgba(10, 22, 16, 0.92)';
+  mctx.fillRect(0, 0, w, h);
+
+  // נהר וגשרים
+  mctx.fillStyle = '#0288d1';
+  mctx.fillRect(RIVER.x * sx, 0, Math.max(3, RIVER.width * sx), h);
+  mctx.fillStyle = '#8d6e63';
+  for (const b of bridges) {
+    mctx.fillRect(b.x * sx - 1, b.y * sy - 2, Math.max(4, b.width * sx + 2), 4);
+  }
+
+  // מחילת הבית
+  mctx.fillStyle = '#66bb6a';
+  mctx.beginPath();
+  mctx.arc(HOME_BASE.x * sx, HOME_BASE.y * sy, 4, 0, Math.PI * 2);
+  mctx.fill();
+
+  // ביצת נחש נדירה
+  if (rareEgg && rareEgg.respawnTimer <= 0 && !rareEgg.carried) {
+    mctx.fillStyle = '#ffe082';
+    mctx.beginPath();
+    mctx.arc(rareEgg.x * sx, rareEgg.y * sy, 3.2, 0, Math.PI * 2);
+    mctx.fill();
+  }
+
+  // נחשים אויבים ובוס
+  for (const en of enemies) {
+    if (en.isBoss) mctx.fillStyle = '#ffd600';
+    else if (en.level <= state.level) mctx.fillStyle = '#00e676';
+    else mctx.fillStyle = '#ff5252';
+    mctx.beginPath();
+    mctx.arc(en.x * sx, en.y * sy, en.isBoss ? 3.5 : 2, 0, Math.PI * 2);
+    mctx.fill();
+  }
+
+  // נשר אם מופיע בעולם
+  if (worldEagle && worldEagle.phase !== 'hidden') {
+    mctx.fillStyle = '#ff9100';
+    mctx.beginPath();
+    mctx.arc(worldEagle.x * sx, worldEagle.y * sy, 3.5, 0, Math.PI * 2);
+    mctx.fill();
+  }
+
+  // השחקן
+  mctx.fillStyle = '#ffffff';
+  mctx.beginPath();
+  mctx.arc(player.x * sx, player.y * sy, 3.2, 0, Math.PI * 2);
+  mctx.fill();
 }
 
 function renderRecords() {
@@ -2765,6 +3170,8 @@ function updateHUD() {
   document.getElementById('xpCount').textContent = lvlProg;
   document.getElementById('xpNeed').textContent = '3';
   document.getElementById('levelXpFill').style.width = `${Math.min(100, (lvlProg / 3) * 100)}%`;
+  const comboEl = document.getElementById('comboCount');
+  if (comboEl) comboEl.textContent = comboStreak;
   document.getElementById('sideBestWorld').textContent = Math.max(records.bestWorld || 1, state.world || 1);
   document.getElementById('sideBestScore').textContent = Math.max(records.bestScore || 0, state.score || 0);
 
@@ -2783,6 +3190,8 @@ function updateHUD() {
   }
 
   document.getElementById('dayNightBtn').textContent = isNightTime() ? '🌙' : '☀️';
+  const soundBtn = document.getElementById('soundBtn');
+  if (soundBtn) soundBtn.textContent = SFX.enabled ? '🔊' : '🔇';
   positionFloatingUI();
 }
 
@@ -3046,6 +3455,12 @@ document.getElementById('dayNightBtn').addEventListener('click', () => {
   showToast(isNightTime() ? '🌙 מצב לילה הופעל!' : '☀️ מצב יום הופעל!');
 });
 
+document.getElementById('soundBtn').addEventListener('click', () => {
+  const on = SFX.toggle();
+  updateHUD();
+  showToast(on ? '🔊 אפקטי הקול וצלילי הטבע הופעלו!' : '🔇 הצלילים הושתקו');
+});
+
 document.getElementById('resetBtn').addEventListener('click', () => {
   if (confirm('האם לאפס את השמירה ולהתחיל מחדש מרמה 1 עם 10 שקלים ו-15 יהלומים?')) {
     recordCompletedRun();
@@ -3096,29 +3511,36 @@ window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
 // ============================================================================
-// מערכת קרבות 1 נגד 1 בסריקת ברקוד (QR Code PvP Duel)
+// מערכת קרבות חברים (2 עד 4 שחקנים) בסריקת ברקוד (QR Code Multiplayer Arena)
 // ============================================================================
 const PUBLIC_GAME_URL = 'https://yardenrimon.github.io/beeri-snake-game/';
 const DUEL_BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
 const DUEL_WIDTH = 1500;
 const DUEL_HEIGHT = 1000;
 const DUEL_MAX_HP = 200;
+const MAX_DUEL_PLAYERS = 4;
 const DUEL_NAME_KEY = 'beeri_snake_duel_name_v1';
+
+const DUEL_SPAWNS = [
+  { x: 300, y: 260, angle: 0.45 },
+  { x: DUEL_WIDTH - 300, y: 260, angle: Math.PI - 0.45 },
+  { x: 300, y: DUEL_HEIGHT - 260, angle: -0.45 },
+  { x: DUEL_WIDTH - 300, y: DUEL_HEIGHT - 260, angle: -Math.PI + 0.45 }
+];
+const DUEL_SLOT_COLORS = ['#00e676', '#ff5252', '#40c4ff', '#ffd600'];
 
 const duel = {
   active: false,
   roundOver: false,
+  eliminated: false,
   role: 'host',
   roomCode: '',
   myId: 'p_' + Math.random().toString(36).slice(2, 10),
   myName: localStorage.getItem(DUEL_NAME_KEY) || 'בארי',
-  oppId: '',
-  oppName: 'יריב',
-  oppProfile: null,
+  mySlot: 0,
   myHp: DUEL_MAX_HP,
-  oppHp: DUEL_MAX_HP,
   myWins: 0,
-  oppWins: 0,
+  peers: {},
   arenaSeed: 1,
   arenaDecor: [],
   client: null,
@@ -3127,23 +3549,9 @@ const duel = {
   joinInterval: null,
   syncInterval: null,
   whipPulseFrames: 0,
-  lastOppSeen: 0,
-  oppHitGraceUntil: 0,
+  duelAmbientTimer: 260,
   savedSoloPlayer: null,
   projectiles: [],
-  opponent: {
-    x: 1180,
-    y: 500,
-    targetX: 1180,
-    targetY: 500,
-    angle: Math.PI,
-    targetAngle: Math.PI,
-    jumpZ: 0,
-    targetZ: 0,
-    biteAnim: 0,
-    tailWhipEffect: null,
-    segments: []
-  },
   qrStream: null,
   qrScanRaf: null,
   qrCanvasHelper: null
@@ -3170,6 +3578,62 @@ function getDuelRoomUrl(code) {
 function setDuelStatus(text) {
   const el = document.getElementById('duelStatusText');
   if (el) el.textContent = text;
+}
+
+function makePeerSegments(x, y, angle) {
+  const segs = [];
+  for (let i = 0; i < 14; i++) {
+    segs.push({ x: x - Math.cos(angle) * i * 13, y: y - Math.sin(angle) * i * 13 });
+  }
+  return segs;
+}
+
+function serializeDuelRoster() {
+  const list = [{
+    id: duel.myId,
+    slot: duel.mySlot,
+    name: duel.myName,
+    profile: getMyDuelProfile(),
+    wins: duel.myWins
+  }];
+  for (const p of Object.values(duel.peers)) {
+    list.push({ id: p.id, slot: p.slot, name: p.name, profile: p.profile, wins: p.wins || 0 });
+  }
+  return list;
+}
+
+function upsertDuelPeer(entry) {
+  if (!entry || !entry.id || entry.id === duel.myId) return;
+  const sp = DUEL_SPAWNS[(entry.slot || 1) % DUEL_SPAWNS.length];
+  const existing = duel.peers[entry.id];
+  if (existing) {
+    existing.slot = entry.slot;
+    existing.name = entry.name || existing.name;
+    existing.profile = entry.profile || existing.profile;
+    return;
+  }
+  duel.peers[entry.id] = {
+    id: entry.id,
+    slot: entry.slot || 1,
+    name: entry.name || `שחקן ${(entry.slot || 1) + 1}`,
+    profile: entry.profile || LEVEL_STYLES[1],
+    x: sp.x,
+    y: sp.y,
+    targetX: sp.x,
+    targetY: sp.y,
+    angle: sp.angle,
+    targetAngle: sp.angle,
+    jumpZ: 0,
+    targetZ: 0,
+    hp: DUEL_MAX_HP,
+    wins: entry.wins || 0,
+    dead: false,
+    biteAnim: 0,
+    tailWhipEffect: null,
+    segments: makePeerSegments(sp.x, sp.y, sp.angle),
+    lastSeen: Date.now(),
+    hitGraceUntil: 0
+  };
 }
 
 function renderDuelQr(roomCode) {
@@ -3217,9 +3681,7 @@ function switchDuelTab(mode) {
   document.getElementById('tabJoinDuel').classList.toggle('active', !isHost);
   document.getElementById('duelHostPanel').classList.toggle('hidden', !isHost);
   document.getElementById('duelJoinPanel').classList.toggle('hidden', isHost);
-  if (isHost) {
-    stopQrScanner();
-  }
+  if (isHost) stopQrScanner();
 }
 
 function disconnectDuelTransport() {
@@ -3253,13 +3715,13 @@ function connectDuelRoom(roomCode, role, brokerIdx = 0) {
   duel.role = role;
   duel.roomCode = roomCode;
   duel.brokerIndex = brokerIdx;
+  duel.peers = {};
+  duel.mySlot = role === 'host' ? 0 : 1;
 
-  if (role === 'host') {
-    renderDuelQr(roomCode);
-  }
+  if (role === 'host') renderDuelQr(roomCode);
 
   if (typeof mqtt === 'undefined') {
-    setDuelStatus('⚠️ נדרש חיבור לאינטרנט כדי לשחק קרב חי מול חבר.');
+    setDuelStatus('⚠️ נדרש חיבור לאינטרנט כדי לשחק קרב חי מול חברים.');
     return;
   }
 
@@ -3294,7 +3756,7 @@ function connectDuelRoom(roomCode, role, brokerIdx = 0) {
     const topic = `beeri-snake-pvp/v1/room-${roomCode}`;
     client.subscribe(topic, () => {
       if (role === 'host') {
-        setDuelStatus(`🟢 ממתין ליריב שיסרוק את הברקוד (קוד ${roomCode})...`);
+        setDuelStatus(`🟢 ממתין לחברים שיסרקו את הברקוד (עד ${MAX_DUEL_PLAYERS} שחקנים • קוד ${roomCode})...`);
       } else {
         setDuelStatus(`🟢 מחובר! מצטרף לקרב בחדר ${roomCode}...`);
         const sendJoin = () => {
@@ -3317,66 +3779,98 @@ function connectDuelRoom(roomCode, role, brokerIdx = 0) {
 
 function handleDuelMessage(msg) {
   if (msg.t === 'join' && duel.role === 'host') {
-    duel.oppId = msg.from;
-    duel.oppName = msg.name || 'שחקן 2';
-    duel.oppProfile = msg.profile || getMyDuelProfile();
+    let slot = duel.peers[msg.from] ? duel.peers[msg.from].slot : null;
+    if (slot === null) {
+      const usedSlots = new Set([0, ...Object.values(duel.peers).map((p) => p.slot)]);
+      for (let s = 1; s < MAX_DUEL_PLAYERS; s++) {
+        if (!usedSlots.has(s)) { slot = s; break; }
+      }
+    }
+    if (slot === null) {
+      publishDuel({ t: 'full', from: duel.myId, to: msg.from });
+      return;
+    }
+    const isNew = !duel.peers[msg.from];
+    upsertDuelPeer({ id: msg.from, slot, name: msg.name, profile: msg.profile });
+
     if (!duel.active) {
       duel.arenaSeed = Math.floor(Math.random() * 100000);
       beginDuelMatch();
+    } else if (isNew) {
+      showToast(`⚔️ ${duel.peers[msg.from].name} נכנס לקרב! (${1 + Object.keys(duel.peers).length}/${MAX_DUEL_PLAYERS})`);
+      updateDuelHUD();
     }
-    const startMsg = {
-      t: 'start',
+
+    const roster = serializeDuelRoster();
+    const welcomeMsg = {
+      t: 'welcome',
       from: duel.myId,
-      name: duel.myName,
-      profile: getMyDuelProfile(),
-      arenaSeed: duel.arenaSeed
+      to: msg.from,
+      assignedSlot: slot,
+      arenaSeed: duel.arenaSeed,
+      players: roster
     };
-    publishDuel(startMsg);
-    setTimeout(() => publishDuel(startMsg), 350);
+    publishDuel(welcomeMsg);
+    setTimeout(() => publishDuel(welcomeMsg), 350);
+    publishDuel({ t: 'roster', from: duel.myId, arenaSeed: duel.arenaSeed, players: roster });
     return;
   }
 
-  if (msg.t === 'start' && duel.role === 'guest' && !duel.active) {
-    if (duel.joinInterval) {
-      clearInterval(duel.joinInterval);
-      duel.joinInterval = null;
+  if (msg.t === 'full' && msg.to === duel.myId) {
+    disconnectDuelTransport();
+    setDuelStatus(`⚠️ החדר מלא (${MAX_DUEL_PLAYERS}/${MAX_DUEL_PLAYERS} שחקנים). צור חדר חדש!`);
+    return;
+  }
+
+  if ((msg.t === 'welcome' && msg.to === duel.myId) || msg.t === 'roster') {
+    if (Array.isArray(msg.players)) {
+      const wasActive = duel.active;
+      for (const p of msg.players) {
+        if (p.id === duel.myId) duel.mySlot = p.slot;
+        else upsertDuelPeer(p);
+      }
+      if (!wasActive && duel.role === 'guest' && (msg.t === 'welcome' || msg.players.some((p) => p.id === duel.myId))) {
+        if (duel.joinInterval) {
+          clearInterval(duel.joinInterval);
+          duel.joinInterval = null;
+        }
+        duel.arenaSeed = msg.arenaSeed || 1;
+        beginDuelMatch();
+      } else if (duel.active) {
+        updateDuelHUD();
+      }
     }
-    duel.oppId = msg.from;
-    duel.oppName = msg.name || 'מארח';
-    duel.oppProfile = msg.profile || getMyDuelProfile();
-    duel.arenaSeed = msg.arenaSeed || 1;
-    beginDuelMatch();
     return;
   }
 
   if (!duel.active) return;
 
   if (msg.t === 's') {
-    duel.lastOppSeen = Date.now();
-    duel.opponent.targetX = Number(msg.x) || duel.opponent.targetX;
-    duel.opponent.targetY = Number(msg.y) || duel.opponent.targetY;
-    duel.opponent.targetAngle = Number(msg.a) || 0;
-    duel.opponent.targetZ = Number(msg.z) || 0;
-    duel.opponent.biteAnim = msg.bite ? 10 : Math.max(0, duel.opponent.biteAnim - 1);
+    if (!duel.peers[msg.from]) {
+      upsertDuelPeer({ id: msg.from, slot: msg.slot || 1, name: msg.name, profile: msg.profile });
+    }
+    const peer = duel.peers[msg.from];
+    if (!peer) return;
+    peer.lastSeen = Date.now();
+    peer.targetX = Number(msg.x) || peer.targetX;
+    peer.targetY = Number(msg.y) || peer.targetY;
+    peer.targetAngle = Number(msg.a) || 0;
+    peer.targetZ = Number(msg.z) || 0;
+    peer.dead = Boolean(msg.dead);
+    peer.biteAnim = msg.bite ? 10 : Math.max(0, peer.biteAnim - 1);
     if (typeof msg.hp === 'number' && !duel.roundOver) {
       const incomingHp = Math.max(0, Math.min(DUEL_MAX_HP, msg.hp));
-      if (incomingHp <= duel.oppHp || Date.now() > duel.oppHitGraceUntil) {
-        duel.oppHp = incomingHp;
+      if (incomingHp <= peer.hp || Date.now() > peer.hitGraceUntil) {
+        peer.hp = incomingHp;
         updateDuelHUD();
       }
     }
-    if (msg.whip && !duel.opponent.tailWhipEffect) {
-      duel.opponent.tailWhipEffect = {
-        x: duel.opponent.x,
-        y: duel.opponent.y,
-        radius: 130,
-        life: 14,
-        maxLife: 14
-      };
+    if (msg.whip && !peer.tailWhipEffect) {
+      peer.tailWhipEffect = { x: peer.x, y: peer.y, radius: 130, life: 14, maxLife: 14 };
     }
   } else if (msg.t === 'shot') {
     duel.projectiles.push({
-      owner: 'opp',
+      owner: msg.from,
       x: msg.x,
       y: msg.y,
       vx: msg.vx,
@@ -3387,31 +3881,49 @@ function handleDuelMessage(msg) {
       life: 55
     });
   } else if (msg.t === 'hit') {
-    if (duel.roundOver || player.jumpZ >= 8 || player.invulnerableTimer > 0) return;
+    if (msg.to && msg.to !== duel.myId) return;
+    if (duel.roundOver || duel.eliminated || player.jumpZ >= 8 || player.invulnerableTimer > 0) return;
     const dmg = Math.max(1, Number(msg.dmg) || 12);
     duel.myHp = Math.max(0, duel.myHp - dmg);
     player.x = Math.max(30, Math.min(DUEL_WIDTH - 30, player.x + (Number(msg.kx) || 0)));
     player.y = Math.max(30, Math.min(DUEL_HEIGHT - 30, player.y + (Number(msg.ky) || 0)));
     player.invulnerableTimer = 4;
+    SFX.hurt();
     spawnParticles(player.x, player.y, '#ff5252', 12);
     addFloatingText(player.x, player.y - 30, `-${dmg} ❤️`, '#ff5252');
     updateDuelHUD();
     sendDuelState();
     if (duel.myHp <= 0) {
+      duel.eliminated = true;
       publishDuel({ t: 'ko', from: duel.myId });
-      finishDuelRound(false);
+      showToast('💥 נפסלת בסיבוב הזה! צופה בהמשך הקרב...');
+      updateDuelHUD();
+      evaluateDuelWinner();
     }
   } else if (msg.t === 'ko') {
-    if (!duel.roundOver) {
-      duel.oppHp = 0;
-      finishDuelRound(true);
+    const peer = duel.peers[msg.from];
+    if (peer && !peer.dead) {
+      peer.dead = true;
+      peer.hp = 0;
+      spawnParticles(peer.x, peer.y, '#ff5252', 24);
+      addFloatingText(peer.x, peer.y - 32, `💥 ${peer.name} נפסל!`, '#ffab91');
+      updateDuelHUD();
+      evaluateDuelWinner();
     }
   } else if (msg.t === 'rematch') {
     document.getElementById('duelResultModal').classList.add('hidden');
     resetDuelRound();
   } else if (msg.t === 'leave') {
-    showToast(`🚪 ${duel.oppName} יצא מהקרב.`);
-    leaveDuel(false);
+    const peer = duel.peers[msg.from];
+    const leftName = peer ? peer.name : 'שחקן';
+    delete duel.peers[msg.from];
+    showToast(`🚪 ${leftName} יצא מהקרב.`);
+    updateDuelHUD();
+    if (Object.keys(duel.peers).length === 0) {
+      leaveDuel(false);
+    } else {
+      evaluateDuelWinner();
+    }
   }
 }
 
@@ -3454,13 +3966,13 @@ function beginDuelMatch() {
 
   duel.active = true;
   duel.myWins = 0;
-  duel.oppWins = 0;
-  duel.lastOppSeen = Date.now();
   duel.arenaDecor = generateDuelArenaDecor(duel.arenaSeed);
 
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('levelSideCard').classList.add('hidden');
   document.getElementById('controlsHint').classList.add('hidden');
+  const mm = document.getElementById('minimapCanvas');
+  if (mm) mm.classList.add('hidden');
   document.getElementById('duelHud').classList.remove('hidden');
 
   try {
@@ -3476,57 +3988,75 @@ function beginDuelMatch() {
 
 function resetDuelRound() {
   duel.roundOver = false;
+  duel.eliminated = false;
   duel.myHp = DUEL_MAX_HP;
-  duel.oppHp = DUEL_MAX_HP;
   duel.projectiles = [];
   particles = [];
   floatingTexts = [];
   tailWhipEffect = null;
 
-  const isHost = duel.role === 'host';
-  player.x = isHost ? 320 : DUEL_WIDTH - 320;
-  player.y = DUEL_HEIGHT / 2;
-  player.angle = isHost ? 0 : Math.PI;
+  const mySp = DUEL_SPAWNS[duel.mySlot % DUEL_SPAWNS.length];
+  player.x = mySp.x;
+  player.y = mySp.y;
+  player.angle = mySp.angle;
   player.jumpZ = 0;
   player.jumpVz = 0;
+  player.sprintTimer = 0;
+  player.sprintEnergy = 100;
   player.invulnerableTimer = 45;
-  player.segments = [];
-  for (let i = 0; i < 14; i++) {
-    player.segments.push({ x: player.x - Math.cos(player.angle) * i * 13, y: player.y });
-  }
+  player.segments = makePeerSegments(mySp.x, mySp.y, mySp.angle);
 
-  const ox = isHost ? DUEL_WIDTH - 320 : 320;
-  const oAng = isHost ? Math.PI : 0;
-  duel.opponent = {
-    x: ox,
-    y: DUEL_HEIGHT / 2,
-    targetX: ox,
-    targetY: DUEL_HEIGHT / 2,
-    angle: oAng,
-    targetAngle: oAng,
-    jumpZ: 0,
-    targetZ: 0,
-    biteAnim: 0,
-    tailWhipEffect: null,
-    segments: []
-  };
-  for (let i = 0; i < 14; i++) {
-    duel.opponent.segments.push({ x: ox - Math.cos(oAng) * i * 13, y: duel.opponent.y });
+  for (const p of Object.values(duel.peers)) {
+    const sp = DUEL_SPAWNS[p.slot % DUEL_SPAWNS.length];
+    p.x = sp.x;
+    p.y = sp.y;
+    p.targetX = sp.x;
+    p.targetY = sp.y;
+    p.angle = sp.angle;
+    p.targetAngle = sp.angle;
+    p.jumpZ = 0;
+    p.targetZ = 0;
+    p.hp = DUEL_MAX_HP;
+    p.dead = false;
+    p.biteAnim = 0;
+    p.tailWhipEffect = null;
+    p.segments = makePeerSegments(sp.x, sp.y, sp.angle);
   }
 
   updateDuelHUD();
   sendDuelState();
-  showToast(`⚔️ הקרב התחיל! ${duel.myName} נגד ${duel.oppName}!`);
+  const count = 1 + Object.keys(duel.peers).length;
+  showToast(`⚔️ הקרב התחיל! (${count} שחקנים בזירה)`);
 }
 
 function updateDuelHUD() {
-  document.getElementById('duelMyName').textContent = duel.myName;
-  document.getElementById('duelOppName').textContent = duel.oppName;
-  document.getElementById('duelMyHpText').textContent = `${Math.ceil(duel.myHp)}/${DUEL_MAX_HP}`;
-  document.getElementById('duelOppHpText').textContent = `${Math.ceil(duel.oppHp)}/${DUEL_MAX_HP}`;
-  document.getElementById('duelMyHpFill').style.width = `${Math.max(0, (duel.myHp / DUEL_MAX_HP) * 100)}%`;
-  document.getElementById('duelOppHpFill').style.width = `${Math.max(0, (duel.oppHp / DUEL_MAX_HP) * 100)}%`;
-  document.getElementById('duelScoreText').textContent = `⚔️ ${duel.myWins} : ${duel.oppWins}`;
+  const container = document.getElementById('duelFightersList');
+  if (!container) return;
+
+  const fighters = [
+    { id: duel.myId, slot: duel.mySlot, name: `${duel.myName} (אתה)`, hp: duel.myHp, wins: duel.myWins, dead: duel.eliminated, me: true },
+    ...Object.values(duel.peers).map((p) => ({
+      id: p.id, slot: p.slot, name: p.name, hp: p.hp, wins: p.wins || 0, dead: p.dead, me: false
+    }))
+  ].sort((a, b) => a.slot - b.slot);
+
+  container.innerHTML = fighters.map((f) => {
+    const pct = Math.max(0, Math.min(100, (f.hp / DUEL_MAX_HP) * 100));
+    const slotCol = DUEL_SLOT_COLORS[f.slot % DUEL_SLOT_COLORS.length];
+    return `
+      <div class="duel-fighter ${f.me ? 'me' : ''} ${f.dead ? 'dead' : ''}" style="border-color: ${slotCol};">
+        <span class="duel-fighter-name">${f.name}</span>
+        <div class="hp-bar-bg"><div class="hp-bar-fill" style="width: ${pct}%; background: ${slotCol};"></div></div>
+        <span class="duel-hp-num">${Math.ceil(f.hp)}</span>
+        <span class="duel-wins-tag">🏆${f.wins}</span>
+      </div>
+    `;
+  }).join('');
+
+  const invBtn = document.getElementById('duelInviteMoreBtn');
+  const codeSpan = document.getElementById('duelHudCode');
+  if (codeSpan) codeSpan.textContent = duel.roomCode;
+  if (invBtn) invBtn.classList.toggle('hidden', fighters.length >= MAX_DUEL_PLAYERS);
 }
 
 function sendDuelState() {
@@ -3534,30 +4064,51 @@ function sendDuelState() {
   publishDuel({
     t: 's',
     from: duel.myId,
+    slot: duel.mySlot,
+    name: duel.myName,
+    profile: getMyDuelProfile(),
     x: Math.round(player.x),
     y: Math.round(player.y),
     a: Number(player.angle.toFixed(2)),
     z: Math.round(player.jumpZ),
     hp: Math.round(duel.myHp),
+    dead: duel.eliminated,
     bite: player.biteAnim > 0,
     whip: duel.whipPulseFrames > 0
   });
   if (duel.whipPulseFrames > 0) duel.whipPulseFrames = 0;
 }
 
-function sendDuelHit(dmg, kx, ky, label) {
-  duel.oppHp = Math.max(0, duel.oppHp - dmg);
-  duel.oppHitGraceUntil = Date.now() + 300;
-  spawnParticles(duel.opponent.x, duel.opponent.y, '#ffd600', 10);
-  addFloatingText(duel.opponent.x, duel.opponent.y - 26, `${label} -${dmg}`, '#ffd54f');
+function sendDuelHit(targetPeerId, dmg, kx, ky, label) {
+  const peer = duel.peers[targetPeerId];
+  if (!peer || peer.dead) return;
+  peer.hp = Math.max(0, peer.hp - dmg);
+  peer.hitGraceUntil = Date.now() + 300;
+  spawnParticles(peer.x, peer.y, '#ffd600', 10);
+  addFloatingText(peer.x, peer.y - 26, `${label} -${dmg}`, '#ffd54f');
   updateDuelHUD();
   publishDuel({
     t: 'hit',
     from: duel.myId,
+    to: targetPeerId,
     dmg,
     kx: Math.round(kx),
     ky: Math.round(ky)
   });
+}
+
+function findNearestLivingPeer(fromX, fromY, maxDist = Infinity) {
+  let best = null;
+  let bestDist = maxDist;
+  for (const p of Object.values(duel.peers)) {
+    if (p.dead) continue;
+    const d = Math.hypot(p.x - fromX, p.y - fromY);
+    if (d < bestDist) {
+      bestDist = d;
+      best = p;
+    }
+  }
+  return best;
 }
 
 function fireDuelProjectile(isLaser) {
@@ -3565,17 +4116,20 @@ function fireDuelProjectile(isLaser) {
   if (!isTouchMode && mouse.activeOnDesktop) {
     targetAngle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
   } else {
-    const angToOpp = Math.atan2(duel.opponent.y - player.y, duel.opponent.x - player.x);
-    let diff = angToOpp - player.angle;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    if (Math.abs(diff) < 0.85) targetAngle = angToOpp;
+    const nearest = findNearestLivingPeer(player.x, player.y, 460);
+    if (nearest) {
+      const angToOpp = Math.atan2(nearest.y - player.y, nearest.x - player.x);
+      let diff = angToOpp - player.angle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      if (Math.abs(diff) < 0.85) targetAngle = angToOpp;
+    }
   }
 
   const spd = isLaser ? 13 : 9.5;
   const dmg = isLaser ? 20 : 16;
   const proj = {
-    owner: 'me',
+    owner: duel.myId,
     x: player.x + Math.cos(targetAngle) * 20,
     y: player.y + Math.sin(targetAngle) * 20,
     vx: Math.cos(targetAngle) * spd,
@@ -3589,20 +4143,49 @@ function fireDuelProjectile(isLaser) {
   publishDuel({ t: 'shot', from: duel.myId, x: proj.x, y: proj.y, vx: proj.vx, vy: proj.vy, isLaser, isMiniCannon: false, dmg });
 }
 
-function finishDuelRound(iWon) {
+function evaluateDuelWinner() {
+  if (duel.roundOver) return;
+  const peersArr = Object.values(duel.peers);
+  if (peersArr.length === 0) return;
+
+  const alive = [];
+  if (!duel.eliminated) alive.push(duel.myId);
+  for (const p of peersArr) {
+    if (!p.dead) alive.push(p.id);
+  }
+  if (alive.length <= 1) {
+    finishDuelRound(alive[0] || null);
+  }
+}
+
+function finishDuelRound(winnerId) {
   if (duel.roundOver) return;
   duel.roundOver = true;
-  if (iWon) duel.myWins++;
-  else duel.oppWins++;
+
+  let winnerName = 'תיקו!';
+  if (winnerId === duel.myId) {
+    duel.myWins++;
+    winnerName = duel.myName;
+    SFX.victory();
+  } else if (winnerId && duel.peers[winnerId]) {
+    duel.peers[winnerId].wins = (duel.peers[winnerId].wins || 0) + 1;
+    winnerName = duel.peers[winnerId].name;
+    SFX.hurt();
+  }
   updateDuelHUD();
 
-  document.getElementById('duelResultTitle').textContent = iWon
+  document.getElementById('duelResultTitle').textContent = winnerId === duel.myId
     ? `🏆 ${duel.myName} ניצח בקרב!`
-    : `💥 ${duel.oppName} ניצח בסיבוב הזה!`;
-  document.getElementById('duelResultSubtitle').textContent = iWon
-    ? 'כל הכבוד! רוצה סיבוב נוסף מול היריב?'
+    : `💥 ${winnerName} ניצח בסיבוב הזה!`;
+  document.getElementById('duelResultSubtitle').textContent = winnerId === duel.myId
+    ? 'כל הכבוד! רוצה סיבוב נוסף מול החברים?'
     : 'כמעט! לחצו על סיבוב נוסף לנקמה מהירה!';
-  document.getElementById('duelResultScore').textContent = `${duel.myName} ${duel.myWins} : ${duel.oppWins} ${duel.oppName}`;
+
+  const board = [
+    `${duel.myName}: ${duel.myWins}🏆`,
+    ...Object.values(duel.peers).map((p) => `${p.name}: ${p.wins || 0}🏆`)
+  ];
+  document.getElementById('duelResultScore').textContent = board.join('  |  ');
   document.getElementById('duelResultModal').classList.remove('hidden');
 }
 
@@ -3614,12 +4197,17 @@ function leaveDuel(notifyPeer = true) {
   stopQrScanner();
   duel.active = false;
   duel.roundOver = false;
+  duel.eliminated = false;
+  duel.peers = {};
 
   document.getElementById('duelHud').classList.add('hidden');
   document.getElementById('duelResultModal').classList.add('hidden');
+  document.getElementById('duelModal').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
   document.getElementById('levelSideCard').classList.remove('hidden');
   document.getElementById('controlsHint').classList.remove('hidden');
+  const mm = document.getElementById('minimapCanvas');
+  if (mm) mm.classList.remove('hidden');
 
   if (duel.savedSoloPlayer) {
     player.x = duel.savedSoloPlayer.x;
@@ -3647,32 +4235,47 @@ function updateDuel() {
     tailWhipEffect.life--;
     if (tailWhipEffect.life <= 0) tailWhipEffect = null;
   }
-  if (duel.opponent.tailWhipEffect) {
-    duel.opponent.tailWhipEffect.life--;
-    if (duel.opponent.tailWhipEffect.life <= 0) duel.opponent.tailWhipEffect = null;
-  }
 
   mouse.worldX = camera.x + mouse.x / camera.zoom;
   mouse.worldY = camera.y + mouse.y / camera.zoom;
 
+  const wasAirborne = player.jumpZ > 0;
   if (player.jumpZ > 0 || player.jumpVz !== 0) {
     player.jumpZ += player.jumpVz;
     player.jumpVz -= 0.55;
     if (player.jumpZ <= 0) {
       player.jumpZ = 0;
       player.jumpVz = 0;
+      if (wasAirborne) {
+        SFX.land();
+        spawnParticles(player.x, player.y, '#cfd8dc', 5);
+      }
     }
   }
 
-  applyPlayerMovementInput(5.6);
-  player.x = Math.max(radius + 20, Math.min(DUEL_WIDTH - radius - 20, player.x + Math.cos(player.angle) * player.speed));
-  player.y = Math.max(radius + 20, Math.min(DUEL_HEIGHT - radius - 20, player.y + Math.sin(player.angle) * player.speed));
-  updateSegments(player.segments, player.x, player.y, radius * 0.72);
+  // ספרינט מהיר גם בזירת החברים
+  if (player.sprintTimer > 0) {
+    player.sprintTimer--;
+    player.sprintEnergy = Math.max(0, (player.sprintTimer / 120) * 100);
+  } else if (player.sprintEnergy < 100) {
+    player.sprintEnergy = Math.min(100, player.sprintEnergy + 0.28);
+  }
+  const sprintBtnEl = document.getElementById('btnSprint');
+  const sprintFillEl = document.getElementById('sprintFill');
+  if (sprintFillEl) sprintFillEl.style.width = `${Math.round(player.sprintEnergy)}%`;
+  if (sprintBtnEl) sprintBtnEl.classList.toggle('sprinting', player.sprintTimer > 0);
 
-  if (mouse.down && !isTouchMode) triggerShoot();
+  if (!duel.eliminated) {
+    const activeSpeed = player.sprintTimer > 0 ? 5.6 * 1.55 : 5.6;
+    applyPlayerMovementInput(activeSpeed);
+    player.x = Math.max(radius + 20, Math.min(DUEL_WIDTH - radius - 20, player.x + Math.cos(player.angle) * player.speed));
+    player.y = Math.max(radius + 20, Math.min(DUEL_HEIGHT - radius - 20, player.y + Math.sin(player.angle) * player.speed));
+    updateSegments(player.segments, player.x, player.y, radius * 0.72);
+    if (mouse.down && !isTouchMode) triggerShoot();
+  }
 
-  // תותחי חליפת זהב חלשים בזירת הקרב
-  if (state.upgrades.hasArmorSuit && !duel.roundOver) {
+  // תותחי חליפת זהב חלשים בזירת הקרב מול היריב הקרוב
+  if (state.upgrades.hasArmorSuit && !duel.roundOver && !duel.eliminated) {
     const pStats = getPlayerStats();
     const configs = getGoldCannonConfigs(pStats.goldCannonCount);
     for (let c = 0; c < configs.length; c++) {
@@ -3681,10 +4284,11 @@ function updateDuel() {
         continue;
       }
       const mount = getGoldCannonMountPoint(player.segments, radius, configs[c].segIndex, configs[c].side);
-      if (Math.hypot(duel.opponent.x - mount.x, duel.opponent.y - mount.y) < 360) {
-        const aim = Math.atan2(duel.opponent.y - mount.y, duel.opponent.x - mount.x);
+      const nearest = findNearestLivingPeer(mount.x, mount.y, 360);
+      if (nearest) {
+        const aim = Math.atan2(nearest.y - mount.y, nearest.x - mount.x);
         const proj = {
-          owner: 'me',
+          owner: duel.myId,
           x: mount.x,
           y: mount.y,
           vx: Math.cos(aim) * 9.5,
@@ -3695,37 +4299,48 @@ function updateDuel() {
           life: 40
         };
         duel.projectiles.push(proj);
+        SFX.miniCannon();
         publishDuel({ t: 'shot', from: duel.myId, x: proj.x, y: proj.y, vx: proj.vx, vy: proj.vy, isLaser: false, isMiniCannon: true, dmg: 5 });
         goldCannonCooldowns[c] = 68 + (c % 2) * 12;
       }
     }
   }
 
-  // החלקת תנועת היריב
-  const opp = duel.opponent;
-  opp.x += (opp.targetX - opp.x) * 0.32;
-  opp.y += (opp.targetY - opp.y) * 0.32;
-  opp.jumpZ += (opp.targetZ - opp.jumpZ) * 0.35;
-  let angDiff = opp.targetAngle - opp.angle;
-  while (angDiff > Math.PI) angDiff -= Math.PI * 2;
-  while (angDiff < -Math.PI) angDiff += Math.PI * 2;
-  opp.angle += angDiff * 0.35;
-  updateSegments(opp.segments, opp.x, opp.y, radius * 0.72);
+  // החלקת תנועת כל המשתתפים (2–4 שחקנים)
+  const peersArr = Object.values(duel.peers);
+  for (const peer of peersArr) {
+    if (peer.tailWhipEffect) {
+      peer.tailWhipEffect.life--;
+      if (peer.tailWhipEffect.life <= 0) peer.tailWhipEffect = null;
+    }
+    peer.x += (peer.targetX - peer.x) * 0.32;
+    peer.y += (peer.targetY - peer.y) * 0.32;
+    peer.jumpZ += (peer.targetZ - peer.jumpZ) * 0.35;
+    let angDiff = peer.targetAngle - peer.angle;
+    while (angDiff > Math.PI) angDiff -= Math.PI * 2;
+    while (angDiff < -Math.PI) angDiff += Math.PI * 2;
+    peer.angle += angDiff * 0.35;
+    updateSegments(peer.segments, peer.x, peer.y, radius * 0.72);
+  }
 
-  // עדכון קליעים בקרב
+  // עדכון קליעים בזירה
   for (let i = duel.projectiles.length - 1; i >= 0; i--) {
     const p = duel.projectiles[i];
     p.x += p.vx;
     p.y += p.vy;
     p.life--;
 
-    if (p.owner === 'me' && !duel.roundOver && opp.jumpZ < 8) {
-      if (Math.hypot(p.x - opp.x, p.y - opp.y) < radius + 12) {
-        const lbl = p.isMiniCannon ? '🟡 תותח!' : (p.isLaser ? '⚡ לייזר!' : '🧪 ארס!');
-        sendDuelHit(p.damage, p.vx * 1.4, p.vy * 1.4, lbl);
-        p.life = 0;
+    if (p.owner === duel.myId && !duel.roundOver) {
+      for (const peer of peersArr) {
+        if (peer.dead || peer.jumpZ >= 8) continue;
+        if (Math.hypot(p.x - peer.x, p.y - peer.y) < radius + 12) {
+          const lbl = p.isMiniCannon ? '🟡 תותח!' : (p.isLaser ? '⚡ לייזר!' : '🧪 ארס!');
+          sendDuelHit(peer.id, p.damage, p.vx * 1.4, p.vy * 1.4, lbl);
+          p.life = 0;
+          break;
+        }
       }
-    } else if (p.owner === 'opp' && player.jumpZ < 8) {
+    } else if (p.owner !== duel.myId && !duel.eliminated && player.jumpZ < 8) {
       if (Math.hypot(p.x - player.x, p.y - player.y) < radius + 10) {
         p.life = 0;
       }
@@ -3734,17 +4349,23 @@ function updateDuel() {
   }
 
   for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life--;
-    if (p.life <= 0) particles.splice(i, 1);
+    const pt = particles[i];
+    pt.x += pt.vx;
+    pt.y += pt.vy;
+    pt.life--;
+    if (pt.life <= 0) particles.splice(i, 1);
   }
   for (let i = floatingTexts.length - 1; i >= 0; i--) {
     const ft = floatingTexts[i];
     ft.y -= 0.8;
     ft.life--;
     if (ft.life <= 0) floatingTexts.splice(i, 1);
+  }
+
+  duel.duelAmbientTimer--;
+  if (duel.duelAmbientTimer <= 0) {
+    duel.duelAmbientTimer = 260 + Math.floor(Math.random() * 180);
+    SFX.playAmbient('meadow', isNightTime(), false);
   }
 
   const viewW = canvas.width / camera.zoom;
@@ -3762,7 +4383,7 @@ function drawDuel() {
   ctx.scale(camera.zoom, camera.zoom);
   ctx.translate(-camera.x, -camera.y);
 
-  // זירת טבע ירוקה לקרב 1 נגד 1
+  // זירת טבע ירוקה לעד 4 שחקנים
   ctx.fillStyle = night ? '#112217' : '#1b3622';
   ctx.fillRect(0, 0, DUEL_WIDTH, DUEL_HEIGHT);
 
@@ -3784,7 +4405,7 @@ function drawDuel() {
   for (const p of duel.projectiles) {
     ctx.save();
     if (p.isLaser) {
-      ctx.strokeStyle = p.owner === 'me' ? '#ff1744' : '#ff9100';
+      ctx.strokeStyle = p.owner === duel.myId ? '#ff1744' : '#ff9100';
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.moveTo(p.x, p.y);
@@ -3796,7 +4417,7 @@ function drawDuel() {
       ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      ctx.fillStyle = p.owner === 'me' ? '#76ff03' : '#e040fb';
+      ctx.fillStyle = p.owner === duel.myId ? '#76ff03' : '#e040fb';
       ctx.beginPath();
       ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
       ctx.fill();
@@ -3804,74 +4425,80 @@ function drawDuel() {
     ctx.restore();
   }
 
-  // ציור נחש היריב
-  const opp = duel.opponent;
-  const opProf = duel.oppProfile || LEVEL_STYLES[1];
-  if (opp.jumpZ > 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-    ctx.arc(opp.x, opp.y + 10, radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.save();
-  ctx.translate(0, -opp.jumpZ * 2.2);
-  drawSnakeBody(opp.segments, radius, opProf.shape || 'diamond', opProf.primary || '#ff5252', opProf.secondary || '#ff8a80', Boolean(opProf.hasArmorSuit), Boolean(opProf.hasArmorSuit), opProf.goldCannonCount || 0);
-  drawSnakeEyes(opp.x, opp.y, opp.angle, radius, Boolean(opProf.hasArtificialTeeth || opp.biteAnim > 0), Boolean(opProf.hasLaserSuit));
-  ctx.restore();
-
-  // תג שם ומד חיים מעל היריב
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(opp.x - 36, opp.y - 42, 72, 7);
-  ctx.fillStyle = '#ff5252';
-  ctx.fillRect(opp.x - 36, opp.y - 42, 72 * Math.max(0, duel.oppHp / DUEL_MAX_HP), 7);
-  ctx.font = 'bold 14px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#ff8a80';
-  ctx.fillText(duel.oppName, opp.x, opp.y - 48);
-
-  if (opp.tailWhipEffect) {
-    const prog = 1 - opp.tailWhipEffect.life / opp.tailWhipEffect.maxLife;
+  // ציור כל היריבים (עד 3 יריבים)
+  const peersArr = Object.values(duel.peers);
+  for (const peer of peersArr) {
+    if (peer.dead) continue;
+    const pProf = peer.profile || LEVEL_STYLES[1];
+    const slotCol = DUEL_SLOT_COLORS[peer.slot % DUEL_SLOT_COLORS.length];
+    if (peer.jumpZ > 0) {
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.arc(peer.x, peer.y + 10, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.save();
-    ctx.strokeStyle = `rgba(255, 82, 82, ${1 - prog})`;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(opp.tailWhipEffect.x, opp.tailWhipEffect.y, opp.tailWhipEffect.radius * (0.4 + prog * 0.6), 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.translate(0, -peer.jumpZ * 2.2);
+    drawSnakeBody(peer.segments, radius, pProf.shape || 'diamond', pProf.primary || slotCol, pProf.secondary || '#ff8a80', Boolean(pProf.hasArmorSuit), Boolean(pProf.hasArmorSuit), pProf.goldCannonCount || 0);
+    drawSnakeEyes(peer.x, peer.y, peer.angle, radius, Boolean(pProf.hasArtificialTeeth || peer.biteAnim > 0), Boolean(pProf.hasLaserSuit));
     ctx.restore();
+
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(peer.x - 36, peer.y - 42, 72, 7);
+    ctx.fillStyle = slotCol;
+    ctx.fillRect(peer.x - 36, peer.y - 42, 72 * Math.max(0, peer.hp / DUEL_MAX_HP), 7);
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = slotCol;
+    ctx.fillText(peer.name, peer.x, peer.y - 48);
+
+    if (peer.tailWhipEffect) {
+      const prog = 1 - peer.tailWhipEffect.life / peer.tailWhipEffect.maxLife;
+      ctx.save();
+      ctx.strokeStyle = `rgba(255, 82, 82, ${1 - prog})`;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(peer.tailWhipEffect.x, peer.tailWhipEffect.y, peer.tailWhipEffect.radius * (0.4 + prog * 0.6), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
-  // ציור נחש השחקן
-  const myProf = getMyDuelProfile();
-  if (player.jumpZ > 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-    ctx.arc(player.x, player.y + 10, radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.save();
-  ctx.translate(0, -player.jumpZ * 2.2);
-  drawSnakeBody(player.segments, radius, myProf.shape, myProf.primary, myProf.secondary, myProf.hasArmorSuit, myProf.hasArmorSuit, myProf.goldCannonCount);
-  drawSnakeEyes(player.x, player.y, player.angle, radius, myProf.hasArtificialTeeth || player.biteAnim > 0, myProf.hasLaserSuit);
-  ctx.restore();
-
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(player.x - 36, player.y - 42, 72, 7);
-  ctx.fillStyle = '#00e676';
-  ctx.fillRect(player.x - 36, player.y - 42, 72 * Math.max(0, duel.myHp / DUEL_MAX_HP), 7);
-  ctx.font = 'bold 14px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#b9f6ca';
-  ctx.fillText(`${duel.myName} (אתה)`, player.x, player.y - 48);
-
-  if (tailWhipEffect) {
-    const progress = 1 - tailWhipEffect.life / tailWhipEffect.maxLife;
+  // ציור נחש השחקן (אם טרם נפסל בסיבוב)
+  if (!duel.eliminated) {
+    const myProf = getMyDuelProfile();
+    const myCol = DUEL_SLOT_COLORS[duel.mySlot % DUEL_SLOT_COLORS.length];
+    if (player.jumpZ > 0) {
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.arc(player.x, player.y + 10, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.save();
-    ctx.strokeStyle = `rgba(255, 167, 38, ${1 - progress})`;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(tailWhipEffect.x, tailWhipEffect.y, tailWhipEffect.radius * (0.4 + progress * 0.65), 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.translate(0, -player.jumpZ * 2.2);
+    drawSnakeBody(player.segments, radius, myProf.shape, myProf.primary, myProf.secondary, myProf.hasArmorSuit, myProf.hasArmorSuit, myProf.goldCannonCount);
+    drawSnakeEyes(player.x, player.y, player.angle, radius, myProf.hasArtificialTeeth || player.biteAnim > 0, myProf.hasLaserSuit);
     ctx.restore();
+
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(player.x - 36, player.y - 42, 72, 7);
+    ctx.fillStyle = myCol;
+    ctx.fillRect(player.x - 36, player.y - 42, 72 * Math.max(0, duel.myHp / DUEL_MAX_HP), 7);
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#b9f6ca';
+    ctx.fillText(`${duel.myName} (אתה)`, player.x, player.y - 48);
+
+    if (tailWhipEffect) {
+      const progress = 1 - tailWhipEffect.life / tailWhipEffect.maxLife;
+      ctx.save();
+      ctx.strokeStyle = `rgba(255, 167, 38, ${1 - progress})`;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(tailWhipEffect.x, tailWhipEffect.y, tailWhipEffect.radius * (0.4 + progress * 0.65), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   for (const pt of particles) {
@@ -3888,25 +4515,28 @@ function drawDuel() {
   }
   ctx.restore();
 
-  // חץ כיוון ליריב אם הוא מחוץ למסך
-  const oppSX = (opp.x - camera.x) * camera.zoom;
-  const oppSY = (opp.y - camera.y) * camera.zoom;
-  if (oppSX < 20 || oppSX > canvas.width - 20 || oppSY < 60 || oppSY > canvas.height - 20) {
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-    const ang = Math.atan2(oppSY - cy, oppSX - cx);
-    const ex = Math.max(40, Math.min(canvas.width - 40, cx + Math.cos(ang) * (canvas.width * 0.4)));
-    const ey = Math.max(95, Math.min(canvas.height - 140, cy + Math.sin(ang) * (canvas.height * 0.35)));
-    ctx.save();
-    ctx.fillStyle = 'rgba(236, 64, 122, 0.9)';
-    ctx.beginPath();
-    ctx.arc(ex, ey, 16, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 14px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('⚔️', ex, ey + 5);
-    ctx.restore();
+  // חיצי כיוון לכל יריב חי שנמצא מחוץ למסך
+  for (const peer of peersArr) {
+    if (peer.dead) continue;
+    const oppSX = (peer.x - camera.x) * camera.zoom;
+    const oppSY = (peer.y - camera.y) * camera.zoom;
+    if (oppSX < 20 || oppSX > canvas.width - 20 || oppSY < 60 || oppSY > canvas.height - 20) {
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const ang = Math.atan2(oppSY - cy, oppSX - cx);
+      const ex = Math.max(40, Math.min(canvas.width - 40, cx + Math.cos(ang) * (canvas.width * 0.4)));
+      const ey = Math.max(95, Math.min(canvas.height - 140, cy + Math.sin(ang) * (canvas.height * 0.35)));
+      ctx.save();
+      ctx.fillStyle = DUEL_SLOT_COLORS[peer.slot % DUEL_SLOT_COLORS.length];
+      ctx.beginPath();
+      ctx.arc(ex, ey, 14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#111';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚔️', ex, ey + 4);
+      ctx.restore();
+    }
   }
 }
 
@@ -3998,6 +4628,13 @@ async function startQrScanner() {
 function openDuelModal(defaultTab = 'host', prefillCode = '') {
   document.getElementById('duelNameInput').value = duel.myName;
   document.getElementById('duelModal').classList.remove('hidden');
+  if (duel.active) {
+    switchDuelTab('host');
+    renderDuelQr(duel.roomCode);
+    const total = 1 + Object.keys(duel.peers).length;
+    setDuelStatus(`🟢 קרב פעיל (${total}/${MAX_DUEL_PLAYERS} שחקנים) – חברים נוספים יכולים לסרוק ולהצטרף עכשיו!`);
+    return;
+  }
   if (defaultTab === 'join') {
     switchDuelTab('join');
     if (prefillCode) {
@@ -4014,6 +4651,7 @@ function openDuelModal(defaultTab = 'host', prefillCode = '') {
 }
 
 document.getElementById('duelBtn').addEventListener('click', () => openDuelModal('host'));
+document.getElementById('duelInviteMoreBtn').addEventListener('click', () => openDuelModal('host'));
 document.getElementById('closeDuelBtn').addEventListener('click', () => {
   stopQrScanner();
   if (!duel.active) disconnectDuelTransport();
@@ -4026,15 +4664,24 @@ document.getElementById('duelNameInput').addEventListener('input', (e) => {
 });
 document.getElementById('tabHostDuel').addEventListener('click', () => {
   switchDuelTab('host');
+  if (duel.active) {
+    renderDuelQr(duel.roomCode);
+    return;
+  }
   const code = String(1000 + Math.floor(Math.random() * 9000));
   connectDuelRoom(code, 'host');
 });
 document.getElementById('tabJoinDuel').addEventListener('click', () => {
-  disconnectDuelTransport();
+  if (!duel.active) disconnectDuelTransport();
   switchDuelTab('join');
   setDuelStatus('סרוק ברקוד עם המצלמה או הקלד קוד בן 4 ספרות מהמסך השני.');
 });
 document.getElementById('newDuelRoomBtn').addEventListener('click', () => {
+  if (duel.active) {
+    renderDuelQr(duel.roomCode);
+    showToast(`קוד הקרב הנוכחי: ${duel.roomCode}`);
+    return;
+  }
   const code = String(1000 + Math.floor(Math.random() * 9000));
   connectDuelRoom(code, 'host');
 });
@@ -4050,7 +4697,7 @@ document.getElementById('copyDuelLinkBtn').addEventListener('click', async () =>
 });
 document.getElementById('shareDuelWaBtn').addEventListener('click', () => {
   if (!duel.roomCode) return;
-  const txt = `בואו להילחם מולי ב"עולם הנחשים של בארי"! לחצו להצטרפות לקרב: ${getDuelRoomUrl(duel.roomCode)}`;
+  const txt = `בואו להילחם מולי (עד 4 שחקנים!) ב"עולם הנחשים של בארי"! לחצו להצטרפות: ${getDuelRoomUrl(duel.roomCode)}`;
   window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank');
 });
 document.getElementById('startQrScanBtn').addEventListener('click', startQrScanner);
@@ -4073,6 +4720,7 @@ document.getElementById('duelRematchBtn').addEventListener('click', () => {
 
 // הפעלת המשחק!
 initWorld(state.world);
+updateHUD();
 const _urlDuelCode = extractDuelCodeFromText(window.location.search);
 if (_urlDuelCode) {
   openDuelModal('join', _urlDuelCode);

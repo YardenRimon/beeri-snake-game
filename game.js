@@ -51,15 +51,17 @@ const DIFFICULTIES = {
   insane: { label: '💀 מטורף', hpMult: 2.2, speedMult: 1.35, dmgMult: 2.2, enemySpit: true, spitCooldown: 110, cssClass: 'diff-insane' }
 };
 
-// משימות צדדיות (בנוסף לציד נחשים – חלקן מוגבלות בזמן!)
+// משימות צדדיות (בנוסף לציד נחשים – מגבלת זמן של 2 דקות / 120 שניות למשימות המוגבלות בזמן!)
 const QUEST_TEMPLATES = [
-  { type: 'bridges', title: 'הפל עץ ליצירת גשר מעל הנהר 🪵', target: 1, rewardMoney: 14, rewardDiamonds: 8, timed: true, timeLimitSec: 75 },
-  { type: 'cross_river', title: 'חצה את הנהר לצד השני 🌊', target: 1, rewardMoney: 15, rewardDiamonds: 10, timed: true, timeLimitSec: 90 },
-  { type: 'jumps', title: 'קפוץ 8 פעמים באוויר ⬆️', target: 8, rewardMoney: 10, rewardDiamonds: 6, timed: true, timeLimitSec: 45 },
-  { type: 'venom_shots', title: 'ירה 10 פעמים ארס או לייזר 🎯', target: 10, rewardMoney: 12, rewardDiamonds: 8, timed: true, timeLimitSec: 55 },
+  { type: 'bridges', title: 'הפל עץ ליצירת גשר מעל הנהר 🪵', target: 1, rewardMoney: 14, rewardDiamonds: 8, timed: true, timeLimitSec: 120 },
+  { type: 'cross_river', title: 'חצה את הנהר לצד השני 🌊', target: 1, rewardMoney: 15, rewardDiamonds: 10, timed: true, timeLimitSec: 120 },
+  { type: 'jumps', title: 'קפוץ 8 פעמים באוויר ⬆️', target: 8, rewardMoney: 10, rewardDiamonds: 6, timed: true, timeLimitSec: 120 },
+  { type: 'venom_shots', title: 'ירה 10 פעמים ארס או לייזר 🎯', target: 10, rewardMoney: 12, rewardDiamonds: 8, timed: true, timeLimitSec: 120 },
   { type: 'shop_buy', title: 'קנה שדרוג או נחש עוזר בחנות 🛒', target: 1, rewardMoney: 14, rewardDiamonds: 10, timed: false, timeLimitSec: 0 },
   { type: 'home_heal', title: 'התרפא בתוך הבית שלך עד חיים מלאים 🏠', target: 1, rewardMoney: 10, rewardDiamonds: 6, timed: false, timeLimitSec: 0 }
 ];
+
+const RECORDS_KEY = 'beeri_snake_records_v1';
 
 // מצב התחלתי של השחקן (לפי האפיון: 10 שקלים ו-15 יהלומים)
 function getDefaultState() {
@@ -67,10 +69,12 @@ function getDefaultState() {
     money: 10,
     diamonds: 15,
     level: 1,
-    xp: 0,
-    xpToNext: 2,
+    levelProgress: 0,
     world: 1,
     maxWorldReached: 1,
+    snakesEaten: 0,
+    bossesDefeated: 0,
+    score: 0,
     difficulty: 'hard',
     quests: {
       completed: 0,
@@ -79,6 +83,7 @@ function getDefaultState() {
     },
     upgrades: {
       biteLevel: 1,
+      tailWhipLevel: 1,
       speedLevel: 1,
       hpLevel: 1,
       venomLevel: 1,
@@ -94,6 +99,69 @@ function getDefaultState() {
       guardLevel: 1
     }
   };
+}
+
+function getDefaultRecords() {
+  return {
+    bestWorld: 1,
+    bestLevel: 1,
+    bestMoney: 10,
+    bestDiamonds: 15,
+    bestScore: 0,
+    totalSnakesEaten: 0,
+    totalBossesDefeated: 0,
+    runs: []
+  };
+}
+
+let records = loadRecords();
+
+function loadRecords() {
+  try {
+    const raw = localStorage.getItem(RECORDS_KEY);
+    if (!raw) return getDefaultRecords();
+    const parsed = JSON.parse(raw);
+    return {
+      ...getDefaultRecords(),
+      ...parsed,
+      runs: Array.isArray(parsed.runs) ? parsed.runs : []
+    };
+  } catch (e) {
+    return getDefaultRecords();
+  }
+}
+
+function saveRecords() {
+  try {
+    localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
+  } catch (e) {
+    console.warn('Could not save records:', e);
+  }
+}
+
+function updatePersonalRecords() {
+  records.bestWorld = Math.max(records.bestWorld, state.world || 1);
+  records.bestLevel = Math.max(records.bestLevel, state.level || 1);
+  records.bestMoney = Math.max(records.bestMoney, state.money || 0);
+  records.bestDiamonds = Math.max(records.bestDiamonds, state.diamonds || 0);
+  records.bestScore = Math.max(records.bestScore, state.score || 0);
+  saveRecords();
+}
+
+function recordCompletedRun() {
+  if ((state.score || 0) <= 0 && (state.snakesEaten || 0) <= 0) return;
+  updatePersonalRecords();
+  const diffCfg = getDifficultyConfig();
+  records.runs.push({
+    score: state.score || 0,
+    world: state.world || 1,
+    level: state.level || 1,
+    snakes: state.snakesEaten || 0,
+    diff: diffCfg.label
+  });
+  records.runs.sort((a, b) => b.score - a.score || b.world - a.world);
+  records.runs = records.runs.slice(0, 8);
+  saveRecords();
 }
 
 function getDifficultyConfig() {
@@ -179,6 +247,8 @@ let enemies = [];
 let helperEntities = [];
 let projectiles = [];
 let enemyProjectiles = [];
+let hazards = [];
+let pits = [];
 let particles = [];
 let floatingTexts = [];
 let worldDecorations = [];
@@ -186,6 +256,16 @@ let currentWorldTheme = getWorldTheme(state.world);
 let bossSpawnedThisWorld = false;
 let crossedRiverThisWorld = false;
 let questTickCounter = 0;
+let tailWhipEffect = null;
+
+// מערכת מזג אוויר ושינויי אקלים (בהיר, גשם, סופת ברקים, שלג/גיצים לפי אקלים העולם)
+const weather = {
+  type: 'clear', // 'clear' | 'rain' | 'storm'
+  timer: 700,
+  drops: [],
+  lightningFlash: 0,
+  boltPoints: null
+};
 
 // מחזור יום ולילה (24 שעות לפי השעון האמיתי, עם אפשרות החלפה ידנית)
 let manualNightOverride = null;
@@ -209,8 +289,10 @@ const player = {
   jumpVz: 0,
   biteCooldown: 0,
   biteAnim: 0,
+  tailWhipCooldown: 0,
   shootCooldown: 0,
   invulnerableTimer: 0,
+  hazardCooldown: 0,
   segments: []
 };
 
@@ -219,18 +301,21 @@ function getPlayerStats() {
   const maxHp = 100 + (u.hpLevel - 1) * 35 + (u.hasArmorSuit ? 60 : 0);
   const baseSpeed = Math.min(9.8, 4.0 + (u.speedLevel - 1) * 0.45);
   const biteDamage = 25 + (u.biteLevel - 1) * 15 + (u.hasArtificialTeeth ? 35 : 0);
+  const tailWhipDamage = 28 + ((u.tailWhipLevel || 1) - 1) * 18 + state.level * 5;
+  const tailWhipRange = 16 + Math.min(state.level * 2.2, 26) + 95 + ((u.tailWhipLevel || 1) - 1) * 20;
   const venomDamage = 22 + (u.venomLevel - 1) * 15;
   const laserDamage = 32 + (u.laserLevel - 1) * 18;
   const radius = 16 + Math.min(state.level * 2.2, 26);
-  const segCount = 8 + Math.min(state.level * 2, 28);
-  return { maxHp, baseSpeed, biteDamage, venomDamage, laserDamage, radius, segCount };
+  const segCount = 12 + Math.min((state.level - 1) * 3, 28);
+  return { maxHp, baseSpeed, biteDamage, tailWhipDamage, tailWhipRange, venomDamage, laserDamage, radius, segCount };
 }
 
 function initPlayerSegments() {
   player.segments = [];
-  const { segCount } = getPlayerStats();
-  for (let i = 0; i < segCount; i++) {
-    player.segments.push({ x: player.x - i * 12, y: player.y });
+  const stats = getPlayerStats();
+  const spacing = stats.radius * 0.75;
+  for (let i = 0; i < stats.segCount; i++) {
+    player.segments.push({ x: player.x - i * spacing, y: player.y });
   }
 }
 
@@ -290,17 +375,18 @@ function initWorld(worldNum) {
   ];
   bridges = [];
 
-  // יצירת נחשים יריבים בעולם: 20 בעולם 1, ו-+5 בכל עליית עולם
+  // יצירת נחשים יריבים בעולם: 20 נחשים קבועים + בוס בסוף העולם + מלכודות מאתגרות
   enemies = [];
   enemyProjectiles = [];
-  const totalSnakes = 20 + (state.world - 1) * 5;
+  hazards = [];
+  const totalSnakes = 20;
   const diffCfg = getDifficultyConfig();
 
   for (let i = 0; i < totalSnakes; i++) {
     let enemyLevel;
-    if (i < Math.ceil(totalSnakes * 0.50)) {
+    if (i < Math.ceil(totalSnakes * 0.45)) {
       enemyLevel = Math.max(1, state.level - 1 + (i % 2));
-    } else if (i < Math.ceil(totalSnakes * 0.85)) {
+    } else if (i < Math.ceil(totalSnakes * 0.80)) {
       enemyLevel = state.level + 1;
     } else {
       enemyLevel = state.level + 2;
@@ -328,6 +414,45 @@ function initWorld(worldNum) {
     spawnEnemySnake(spawnX, spawnY, enemyLevel, false, false);
   }
 
+  // יצירת מלכודות רעל מסתובבות שמגבירות את האתגר בכל עולם
+  const hazardCount = 4 + Math.min(Math.floor(state.world / 2), 14);
+  for (let h = 0; h < hazardCount; h++) {
+    const onRight = h >= Math.floor(hazardCount / 2);
+    const minX = onRight ? RIVER.x + RIVER.width + 90 : 100;
+    const maxX = onRight ? WORLD_WIDTH - 100 : RIVER.x - 90;
+    let hx = minX + Math.random() * (maxX - minX);
+    let hy = 150 + Math.random() * (WORLD_HEIGHT - 300);
+    if (Math.hypot(hx - HOME_BASE.x, hy - HOME_BASE.y) < HOME_BASE.radius + 110) {
+      hy = hy < HOME_BASE.y ? 220 : WORLD_HEIGHT - 220;
+    }
+    const ang = Math.random() * Math.PI * 2;
+    const spd = 1.1 + Math.min(state.world * 0.04, 1.4);
+    hazards.push({
+      x: hx,
+      y: hy,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      radius: 22,
+      angle: 0
+    });
+  }
+
+  // יצירת מעט בורות קטנים במפה (רק נחשים ברמות 1 עד 10 יכולים ליפול אליהם!)
+  pits = [];
+  const pitCount = 4;
+  for (let p = 0; p < pitCount; p++) {
+    const onRight = p >= 2;
+    const minX = onRight ? RIVER.x + RIVER.width + 110 : 120;
+    const maxX = onRight ? WORLD_WIDTH - 120 : RIVER.x - 110;
+    let px = minX + Math.random() * (maxX - minX);
+    let py = 180 + Math.random() * (WORLD_HEIGHT - 360);
+    if (Math.hypot(px - HOME_BASE.x, py - HOME_BASE.y) < HOME_BASE.radius + 140) {
+      py = py < HOME_BASE.y ? 200 : WORLD_HEIGHT - 200;
+    }
+    pits.push({ x: px, y: py, radius: 20 });
+  }
+
+  updatePersonalRecords();
   rebuildHelpers();
   updateHUD();
   showToast(`🌍 עולם ${state.world} – ${currentWorldTheme.name} (${diffCfg.label})! הבס ${enemies.length} נחשים כדי להזמין את הבוס!`);
@@ -374,7 +499,10 @@ function spawnEnemySnake(x, y, level, isBurglar = false, isBoss = false) {
     segments: segs,
     turnTimer: 0,
     biteCooldown: 0,
-    spitCooldown: 70 + Math.floor(Math.random() * 70)
+    spitCooldown: 70 + Math.floor(Math.random() * 70),
+    dashTelegraph: 0,
+    dashTimer: 0,
+    dashCooldown: 110 + Math.floor(Math.random() * 110)
   });
 }
 
@@ -495,6 +623,10 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'ArrowDown') {
     e.preventDefault();
     triggerBite();
+  }
+  if (e.code === 'KeyE' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    e.preventDefault();
+    triggerTailWhip();
   }
 });
 
@@ -626,10 +758,58 @@ function bindMobileButton(btnId, handler) {
 bindMobileButton('btnJump', triggerJump);
 bindMobileButton('btnBite', triggerBite);
 bindMobileButton('btnShoot', triggerShoot);
+bindMobileButton('btnTailWhip', triggerTailWhip);
 
 // ============================================================================
-// פעולות השחקן: קפיצה (חץ למעלה), נשיכה (חץ למטה), ירי ארס/לייזר
+// פעולות השחקן: קפיצה (חץ למעלה), נשיכה (חץ למטה), הצלפת זנב וירי ארס/לייזר
 // ============================================================================
+function triggerTailWhip() {
+  if (player.tailWhipCooldown > 0) return;
+  player.tailWhipCooldown = 28;
+  const stats = getPlayerStats();
+  const tail = player.segments[player.segments.length - 1] || player;
+  const centerX = (player.x + tail.x) / 2;
+  const centerY = (player.y + tail.y) / 2;
+
+  tailWhipEffect = {
+    x: centerX,
+    y: centerY,
+    radius: stats.tailWhipRange,
+    life: 16,
+    maxLife: 16
+  };
+
+  let hitCount = 0;
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const en = enemies[i];
+    const dHead = Math.hypot(en.x - player.x, en.y - player.y);
+    const dTail = Math.hypot(en.x - tail.x, en.y - tail.y);
+    const dist = Math.min(dHead, dTail);
+
+    if (dist <= stats.tailWhipRange + en.radius) {
+      hitCount++;
+      // הצלפת הזנב הודפת נחשים אחרים לאחור וגורמת נזק לפי שדרוג עוצמת ההצלפה!
+      const pushAng = Math.atan2(en.y - centerY, en.x - centerX);
+      const knock = 45 + ((state.upgrades.tailWhipLevel || 1) - 1) * 14;
+      en.x = Math.max(80, Math.min(WORLD_WIDTH - 80, en.x + Math.cos(pushAng) * knock));
+      en.y = Math.max(80, Math.min(WORLD_HEIGHT - 80, en.y + Math.sin(pushAng) * knock));
+
+      if (en.level <= state.level || en.isBoss) {
+        damageEnemy(i, stats.tailWhipDamage, '🌀 הצלפה!');
+      } else {
+        const bigDmg = Math.round(stats.tailWhipDamage * 0.55);
+        en.hp -= bigDmg;
+        addFloatingText(en.x, en.y - 25, `🌀 הדף! -${bigDmg}`, '#ffb74d');
+        if (en.hp <= 0) eatEnemy(i);
+      }
+    }
+  }
+
+  spawnParticles(tail.x, tail.y, '#ffa726', 16);
+  if (hitCount === 0) {
+    addFloatingText(tail.x, tail.y - 20, '🌀 הצלפה!', '#ffcc80');
+  }
+}
 function triggerJump() {
   if (player.jumpZ === 0) {
     player.jumpVz = 9.5;
@@ -771,32 +951,18 @@ function eatEnemy(enemyIndex, options = {}) {
 
   state.money += moneyGain;
   state.diamonds += diamondGain;
+  state.snakesEaten = (state.snakesEaten || 0) + 1;
+  if (en.isBoss) state.bossesDefeated = (state.bossesDefeated || 0) + 1;
+  state.score = (state.score || 0) + (en.isBoss ? 250 : 25 * en.level);
+
+  records.totalSnakesEaten = (records.totalSnakesEaten || 0) + 1;
+  if (en.isBoss) records.totalBossesDefeated = (records.totalBossesDefeated || 0) + 1;
+  updatePersonalRecords();
 
   let rewardMsg = '🍽️ נאכל! ';
   if (moneyGain > 0) rewardMsg += `+${moneyGain}₪ `;
   if (diamondGain > 0) rewardMsg += `+${diamondGain}💎`;
   addFloatingText(en.x, en.y - 35, rewardMsg, '#69f0ae');
-
-  // גדילה ועליית רמה
-  state.xp += 1;
-  if (state.xp >= state.xpToNext) {
-    state.xp = 0;
-    state.xpToNext = Math.min(3 + Math.floor(state.level / 2), 8);
-    state.level += 1;
-
-    const newStyle = LEVEL_STYLES[(state.level - 1) % LEVEL_STYLES.length];
-    const stats = getPlayerStats();
-    player.maxHp = stats.maxHp;
-    player.hp = player.maxHp;
-
-    while (player.segments.length < stats.segCount) {
-      const tail = player.segments[player.segments.length - 1];
-      player.segments.push({ x: tail.x, y: tail.y });
-    }
-
-    showToast(`🎉 עלית לרמה ${state.level}! הנחש שינה צבע וצורה ל-${newStyle.name}!`);
-    spawnParticles(player.x, player.y, newStyle.primary, 35);
-  }
 
   saveState();
   updateHUD();
@@ -815,20 +981,41 @@ function checkWorldProgress() {
     return;
   }
 
+  // ניקוי עולם + עליית רמה כל 4 עולמות!
   enemies = [];
+  state.levelProgress = (state.levelProgress || 0) + 1;
+  if (state.levelProgress >= 4) {
+    state.levelProgress = 0;
+    state.level += 1;
+    const newStyle = LEVEL_STYLES[(state.level - 1) % LEVEL_STYLES.length];
+    const stats = getPlayerStats();
+    player.maxHp = stats.maxHp;
+    player.hp = player.maxHp;
+    while (player.segments.length < stats.segCount) {
+      const tail = player.segments[player.segments.length - 1];
+      const prev = player.segments[player.segments.length - 2] || tail;
+      const ang = Math.atan2(tail.y - prev.y, tail.x - prev.x);
+      player.segments.push({ x: tail.x + Math.cos(ang) * 12, y: tail.y + Math.sin(ang) * 12 });
+    }
+    updatePersonalRecords();
+    showToast(`🎉 השלמת 4 עולמות ועלית לרמה ${state.level}! הנחש השתנה ל-${newStyle.name}!`);
+    spawnParticles(player.x, player.y, newStyle.primary, 35);
+  }
+  saveState();
+
   if (state.world < MAX_WORLDS) {
     showToast(`🏆 סיימת את עולם ${state.world}! עובר לעולם ${state.world + 1}...`);
     setTimeout(() => {
       initWorld(state.world + 1);
     }, 1500);
   } else {
-    saveState();
     updateHUD();
     showToast(`👑 כל הכבוד! ניצחת את כל ${MAX_WORLDS} העולמות!`);
   }
 }
 
 function sendPlayerHome(reason) {
+  recordCompletedRun();
   spawnParticles(player.x, player.y, '#ff1744', 25);
   player.x = HOME_BASE.x;
   player.y = HOME_BASE.y;
@@ -852,8 +1039,14 @@ function update() {
 
   if (player.biteCooldown > 0) player.biteCooldown--;
   if (player.biteAnim > 0) player.biteAnim--;
+  if (player.tailWhipCooldown > 0) player.tailWhipCooldown--;
   if (player.shootCooldown > 0) player.shootCooldown--;
   if (player.invulnerableTimer > 0) player.invulnerableTimer--;
+  if (player.hazardCooldown > 0) player.hazardCooldown--;
+  if (tailWhipEffect) {
+    tailWhipEffect.life--;
+    if (tailWhipEffect.life <= 0) tailWhipEffect = null;
+  }
 
   // חישוב מיקום עכבר בעולם עם התחשבות בזום
   mouse.worldX = camera.x + mouse.x / camera.zoom;
@@ -947,6 +1140,19 @@ function update() {
   // עדכון חוליות גוף הנחש
   updateSegments(player.segments, player.x, player.y, stats.radius * 0.72);
 
+  // כלל נחש קלאסי: אם הראש נוגע בחלק אחר בגוף שלך – אתה נפסל!
+  if (player.speed > 0 && player.jumpZ < 6 && player.invulnerableTimer <= 0) {
+    for (let i = 4; i < player.segments.length; i++) {
+      const seg = player.segments[i];
+      const t = i / Math.max(1, player.segments.length - 1);
+      const segR = stats.radius * (1 - t * 0.42);
+      if (Math.hypot(seg.x - player.x, seg.y - player.y) < (stats.radius + segR) * 0.72) {
+        sendPlayerHome('התנגשת בגוף של עצמך');
+        return;
+      }
+    }
+  }
+
   // ריפוי אוטומטי בבית
   const distHome = Math.hypot(player.x - HOME_BASE.x, player.y - HOME_BASE.y);
   if (distHome < HOME_BASE.radius && player.hp < player.maxHp) {
@@ -973,8 +1179,10 @@ function update() {
 
   updateProjectiles();
   updateEnemyProjectiles(stats);
+  updateHazards(stats);
   updateHelpers();
   updateEnemies(stats);
+  updateWeather();
   tickTimedQuests();
 
   for (let i = particles.length - 1; i >= 0; i--) {
@@ -1168,13 +1376,25 @@ function updateEnemies(playerStats) {
       const chaseRange = en.isBoss ? 1400 : (400 + Math.min(state.world * 10, 200));
 
       if ((en.level > state.level || en.isBoss) && playerOutsideHome && distToPlayer < chaseRange) {
-        // נחשים גדולים ובוסים רודפים אחרי השחקן כשהוא יוצא מהבית
+        // נחשים גדולים ובוסים רודפים אחרי השחקן, מסתערים ויורקים ארס
+        if (en.dashCooldown > 0) en.dashCooldown--;
+        if (en.dashTelegraph > 0) {
+          en.dashTelegraph--;
+          if (en.dashTelegraph === 0) en.dashTimer = 22;
+        }
+        if (en.dashTimer > 0) en.dashTimer--;
+
+        if (en.dashCooldown <= 0 && en.dashTelegraph === 0 && en.dashTimer === 0 && distToPlayer < 320) {
+          en.dashTelegraph = 24;
+          en.dashCooldown = en.isBoss ? 140 : 190;
+        }
+
         const targetAngle = Math.atan2(player.y - en.y, player.x - en.x);
         let diff = targetAngle - en.angle;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
         en.angle += diff * (en.isBoss ? 0.11 : 0.085);
-        moveSpeed = en.speed * 1.15;
+        moveSpeed = en.dashTimer > 0 ? en.speed * 1.95 : (en.dashTelegraph > 0 ? en.speed * 0.45 : en.speed * 1.15);
 
         // ירי ארס סגול מצד נחשים חזקים (ברמה קשה/מטורפת) ומצד הבוס תמיד!
         if ((diffCfg.enemySpit || en.isBoss) && en.spitCooldown <= 0 && distToPlayer < 420) {
@@ -1252,6 +1472,20 @@ function updateEnemies(playerStats) {
         }
       }
     }
+
+    // בדיקת נפילה לבור קטן (רק נחשים ברמות 1 עד 10)
+    if (en.hp > 0 && !en.isBoss && en.level >= 1 && en.level <= 10) {
+      for (const pit of pits) {
+        if (Math.hypot(en.x - pit.x, en.y - pit.y) < pit.radius + 6) {
+          spawnParticles(pit.x, pit.y, '#90a4ae', 14);
+          addFloatingText(pit.x, pit.y - 20, '🕳️ נחש נפל לבור!', '#cfd8dc');
+          enemies.splice(i, 1);
+          burglarEscaped = true;
+          updateHUD();
+          break;
+        }
+      }
+    }
   }
 
   if (burglarEscaped) {
@@ -1289,6 +1523,124 @@ function updateEnemyProjectiles(playerStats) {
     }
 
     if (ep.life <= 0) enemyProjectiles.splice(i, 1);
+  }
+}
+
+function updateHazards(playerStats) {
+  const diffCfg = getDifficultyConfig();
+  for (const h of hazards) {
+    h.angle += 0.05;
+    let nx = h.x + h.vx;
+    let ny = h.y + h.vy;
+
+    if (nx < 70 || nx > WORLD_WIDTH - 70) h.vx = -h.vx;
+    if (ny < 70 || ny > WORLD_HEIGHT - 70) h.vy = -h.vy;
+    if (Math.hypot(nx - HOME_BASE.x, ny - HOME_BASE.y) < HOME_BASE.radius + 45) {
+      h.vx = -h.vx;
+      h.vy = -h.vy;
+    }
+    if (nx > RIVER.x - 30 && nx < RIVER.x + RIVER.width + 30) {
+      h.vx = -h.vx;
+    }
+
+    h.x += h.vx;
+    h.y += h.vy;
+
+    if (player.jumpZ < 8 && player.invulnerableTimer <= 0 && player.hazardCooldown <= 0) {
+      const dist = Math.hypot(h.x - player.x, h.y - player.y);
+      if (dist < playerStats.radius + h.radius - 4) {
+        player.hazardCooldown = 35;
+        const dmg = Math.round((12 + Math.min(state.world * 2, 20)) * diffCfg.dmgMult);
+        player.hp -= dmg;
+        spawnParticles(player.x, player.y, '#ff1744', 14);
+        addFloatingText(player.x, player.y - 30, `☠️ מלכודת! -${dmg}`, '#ff5252');
+        updateHUD();
+        if (player.hp <= 0) {
+          sendPlayerHome('נפגעת ממלכודת רעל');
+          break;
+        }
+      }
+    }
+  }
+
+  // בדיקת נפילה לבור קטן לשחקן (רק ברמות 1 עד 10, ואם לא קופצים מעליו)
+  if (state.level >= 1 && state.level <= 10 && player.jumpZ < 6 && player.invulnerableTimer <= 0) {
+    for (const pit of pits) {
+      if (Math.hypot(pit.x - player.x, pit.y - player.y) < pit.radius + 8) {
+        sendPlayerHome('נפלת לתוך בור קטן');
+        break;
+      }
+    }
+  }
+}
+
+function updateWeather() {
+  weather.timer--;
+  if (weather.lightningFlash > 0) weather.lightningFlash -= 0.06;
+  if (weather.lightningFlash < 0) weather.lightningFlash = 0;
+
+  if (weather.timer <= 0) {
+    const roll = Math.random();
+    if (weather.type === 'clear') {
+      weather.type = roll < 0.55 ? 'rain' : 'storm';
+      weather.timer = 650 + Math.floor(Math.random() * 450);
+    } else if (weather.type === 'rain') {
+      weather.type = roll < 0.45 ? 'storm' : 'clear';
+      weather.timer = 600 + Math.floor(Math.random() * 450);
+    } else {
+      weather.type = roll < 0.6 ? 'clear' : 'rain';
+      weather.timer = 700 + Math.floor(Math.random() * 500);
+    }
+
+    const theme = currentWorldTheme || getWorldTheme(state.world);
+    const isIce = theme.name.includes('קרח');
+    const isLava = theme.name.includes('לבה');
+    if (weather.type === 'rain') {
+      showToast(isIce ? '❄️ התחילה סופת שלג!' : (isLava ? '🌋 גשם גיצים ואפר!' : '🌧️ התחיל גשם בעולם!'));
+    } else if (weather.type === 'storm') {
+      showToast('⛈️ סופת ברקים משתוללת!');
+    } else {
+      showToast('🌤️ מזג האוויר התבהר!');
+    }
+  }
+
+  if (weather.type !== 'clear') {
+    const targetDrops = weather.type === 'storm' ? 90 : 50;
+    while (weather.drops.length < targetDrops) {
+      weather.drops.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        len: 10 + Math.random() * 14,
+        speed: weather.type === 'storm' ? 13 : 9
+      });
+    }
+    for (const d of weather.drops) {
+      d.x -= weather.type === 'storm' ? 3.2 : 1.5;
+      d.y += d.speed;
+      if (d.y > canvas.height) {
+        d.y = -20;
+        d.x = Math.random() * (canvas.width + 120);
+      }
+      if (d.x < -20) d.x += canvas.width + 40;
+    }
+
+    // ברקים אקראיים בסופת ברקים
+    if (weather.type === 'storm' && Math.random() < 0.008) {
+      weather.lightningFlash = 0.75;
+      const bx = 80 + Math.random() * (canvas.width - 160);
+      const pts = [{ x: bx, y: 0 }];
+      let cy = 0;
+      let cx = bx;
+      while (cy < canvas.height * 0.7) {
+        cy += 45 + Math.random() * 40;
+        cx += (Math.random() - 0.5) * 65;
+        pts.push({ x: cx, y: cy });
+      }
+      weather.boltPoints = pts;
+    }
+  } else {
+    weather.drops = [];
+    weather.boltPoints = null;
   }
 }
 
@@ -1371,6 +1723,48 @@ function draw() {
     ctx.fillText('🌳 נשוך/ירה לגשר', t.x, t.y - 44);
   }
 
+  // ציור בורות קטנים במפה (סכנה לרמות 1–10)
+  for (const pit of pits) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(pit.x, pit.y, pit.radius + 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#455a64';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(pit.x, pit.y, pit.radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#050709';
+    ctx.fill();
+    ctx.strokeStyle = '#90a4ae';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#cfd8dc';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🕳️ בור (1–10)', pit.x, pit.y - pit.radius - 8);
+    ctx.restore();
+  }
+
+  // ציור מלכודות רעל מסתובבות
+  for (const h of hazards) {
+    ctx.save();
+    ctx.translate(h.x, h.y);
+    ctx.rotate(h.angle);
+    ctx.fillStyle = '#b71c1c';
+    ctx.strokeStyle = '#ff5252';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let s = 0; s < 12; s++) {
+      const r = s % 2 === 0 ? h.radius + 4 : h.radius * 0.55;
+      const a = (s * Math.PI) / 6;
+      if (s === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+      else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // ציור הבית של השחקן
   ctx.save();
   ctx.beginPath();
@@ -1410,6 +1804,18 @@ function draw() {
       en.isBoss
     );
     drawSnakeEyes(en.x, en.y, en.angle, en.radius, en.isBoss, false);
+
+    // טבעת התראה לפני הסתערות (Dash)
+    if (en.dashTelegraph > 0) {
+      ctx.save();
+      ctx.strokeStyle = '#ffab00';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.arc(en.x, en.y, en.radius + 12, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     const barW = en.isBoss ? 84 : 54;
     const barH = en.isBoss ? 9 : 7;
@@ -1505,6 +1911,20 @@ function draw() {
   );
   ctx.restore();
 
+  // גל הלם של הצלפת זנב
+  if (tailWhipEffect) {
+    const progress = 1 - tailWhipEffect.life / tailWhipEffect.maxLife;
+    ctx.save();
+    ctx.strokeStyle = `rgba(255, 167, 38, ${1 - progress})`;
+    ctx.fillStyle = `rgba(255, 213, 79, ${(1 - progress) * 0.18})`;
+    ctx.lineWidth = 6 * (1 - progress) + 2;
+    ctx.beginPath();
+    ctx.arc(tailWhipEffect.x, tailWhipEffect.y, tailWhipEffect.radius * (0.4 + progress * 0.65), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // קו כיוון לייזר
   if (state.upgrades.hasLaserSuit) {
     ctx.save();
@@ -1536,9 +1956,59 @@ function draw() {
 
   ctx.restore();
 
+  // תאורת לילה
   if (night) {
     ctx.fillStyle = 'rgba(5, 10, 28, 0.36)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // אפקטי מזג אוויר (גשם, שלג, גיצים, סופת ברקים)
+  if (weather.type !== 'clear') {
+    const wTheme = currentWorldTheme || getWorldTheme(state.world);
+    const isIce = wTheme.name.includes('קרח');
+    const isLava = wTheme.name.includes('לבה');
+
+    ctx.save();
+    if (weather.type === 'storm') {
+      ctx.fillStyle = 'rgba(10, 15, 30, 0.22)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    for (const d of weather.drops) {
+      if (isIce) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (isLava) {
+        ctx.fillStyle = 'rgba(255, 138, 0, 0.85)';
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = weather.type === 'storm' ? 'rgba(179, 229, 252, 0.72)' : 'rgba(129, 212, 250, 0.58)';
+        ctx.lineWidth = weather.type === 'storm' ? 2 : 1.5;
+        ctx.beginPath();
+        ctx.moveTo(d.x, d.y);
+        ctx.lineTo(d.x - 4, d.y + d.len);
+        ctx.stroke();
+      }
+    }
+
+    if (weather.lightningFlash > 0 && weather.boltPoints) {
+      ctx.strokeStyle = `rgba(255, 255, 200, ${weather.lightningFlash})`;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      weather.boltPoints.forEach((pt, idx) => {
+        if (idx === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+
+      ctx.fillStyle = `rgba(255, 255, 255, ${weather.lightningFlash * 0.35})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.restore();
   }
 }
 
@@ -1767,6 +2237,57 @@ function renderQuests() {
   }
 }
 
+function positionFloatingUI() {
+  const hudEl = document.getElementById('hud');
+  const hudBottom = hudEl ? hudEl.offsetHeight : 62;
+  const sideCard = document.getElementById('levelSideCard');
+  const toasts = document.getElementById('toastContainer');
+  if (sideCard) sideCard.style.top = `${hudBottom + 8}px`;
+  if (toasts) toasts.style.top = `${hudBottom + 10}px`;
+}
+
+function renderRecords() {
+  updatePersonalRecords();
+  const summary = document.getElementById('recordsSummary');
+  summary.innerHTML = `
+    <div class="record-stat"><div class="rec-val">${records.bestScore}</div><div class="rec-lbl">🏆 שיא ניקוד</div></div>
+    <div class="record-stat"><div class="rec-val">${records.bestWorld}/150</div><div class="rec-lbl">🌍 עולם שיא</div></div>
+    <div class="record-stat"><div class="rec-val">${records.bestLevel}</div><div class="rec-lbl">⭐ רמה שיא</div></div>
+    <div class="record-stat"><div class="rec-val">${records.bestMoney} ₪</div><div class="rec-lbl">💵 שיא כסף</div></div>
+    <div class="record-stat"><div class="rec-val">${records.bestDiamonds} 💎</div><div class="rec-lbl">💎 שיא יהלומים</div></div>
+    <div class="record-stat"><div class="rec-val">${records.totalSnakesEaten || 0}</div><div class="rec-lbl">🐍 סה"כ נחשים שנאכלו</div></div>
+    <div class="record-stat"><div class="rec-val">${records.totalBossesDefeated || 0}</div><div class="rec-lbl">👑 בוסים שהובסו</div></div>
+  `;
+
+  const tbody = document.getElementById('recordsTableBody');
+  const liveRun = {
+    score: state.score || 0,
+    world: state.world || 1,
+    level: state.level || 1,
+    snakes: state.snakesEaten || 0,
+    diff: `${getDifficultyConfig().label} (חי)`
+  };
+  const combined = [...(records.runs || [])];
+  if (liveRun.score > 0 || liveRun.snakes > 0 || combined.length === 0) {
+    combined.push(liveRun);
+  }
+  combined.sort((a, b) => b.score - a.score || b.world - a.world);
+
+  tbody.innerHTML = '';
+  combined.slice(0, 8).forEach((run, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
+      <td><strong>${run.score}</strong></td>
+      <td>${run.world}</td>
+      <td>${run.level}</td>
+      <td>${run.snakes}</td>
+      <td>${run.diff}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
 function updateHUD() {
   const style = LEVEL_STYLES[(state.level - 1) % LEVEL_STYLES.length];
   const diffCfg = getDifficultyConfig();
@@ -1784,6 +2305,16 @@ function updateHUD() {
   document.getElementById('hpBarFill').style.width = `${hpPct}%`;
   document.getElementById('hpText').textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
 
+  // עדכון חלונית רמה ושיא בצד המסך
+  const lvlProg = state.levelProgress || 0;
+  document.getElementById('sideLevelNum').textContent = state.level;
+  document.getElementById('sideShapeName').textContent = style.name;
+  document.getElementById('xpCount').textContent = lvlProg;
+  document.getElementById('xpNeed').textContent = '4';
+  document.getElementById('levelXpFill').style.width = `${Math.min(100, (lvlProg / 4) * 100)}%`;
+  document.getElementById('sideBestWorld').textContent = Math.max(records.bestWorld || 1, state.world || 1);
+  document.getElementById('sideBestScore').textContent = Math.max(records.bestScore || 0, state.score || 0);
+
   const diffBtn = document.getElementById('difficultyBtn');
   if (diffBtn) {
     diffBtn.textContent = diffCfg.label;
@@ -1799,6 +2330,7 @@ function updateHUD() {
   }
 
   document.getElementById('dayNightBtn').textContent = isNightTime() ? '🌙' : '☀️';
+  positionFloatingUI();
 }
 
 function renderShop() {
@@ -1813,6 +2345,13 @@ function renderShop() {
       costMoney: 6 * u.biteLevel,
       costDiamonds: 0,
       action: () => { u.biteLevel++; }
+    },
+    {
+      title: `🌀 שדרוג עוצמת הצלפת זנב (רמה ${u.tailWhipLevel || 1})`,
+      desc: 'מגדיל את הנזק, הטווח וההדף של מכת הזנב!',
+      costMoney: 7 * (u.tailWhipLevel || 1),
+      costDiamonds: 4 * (u.tailWhipLevel || 1),
+      action: () => { u.tailWhipLevel = (u.tailWhipLevel || 1) + 1; }
     },
     {
       title: `⚡ שדרוג מהירות (רמה ${u.speedLevel})`,
@@ -2015,6 +2554,15 @@ document.getElementById('closeQuestsBtn').addEventListener('click', () => {
   document.getElementById('questsModal').classList.add('hidden');
 });
 
+document.getElementById('recordsBtn').addEventListener('click', () => {
+  renderRecords();
+  document.getElementById('recordsModal').classList.remove('hidden');
+});
+
+document.getElementById('closeRecordsBtn').addEventListener('click', () => {
+  document.getElementById('recordsModal').classList.add('hidden');
+});
+
 document.getElementById('difficultyBtn').addEventListener('click', () => {
   const order = ['normal', 'hard', 'insane'];
   const idx = order.indexOf(state.difficulty);
@@ -2033,6 +2581,7 @@ document.getElementById('dayNightBtn').addEventListener('click', () => {
 
 document.getElementById('resetBtn').addEventListener('click', () => {
   if (confirm('האם לאפס את השמירה ולהתחיל מחדש מרמה 1 עם 10 שקלים ו-15 יהלומים?')) {
+    recordCompletedRun();
     localStorage.removeItem(SAVE_KEY);
     state = getDefaultState();
     initWorld(1);
@@ -2074,6 +2623,7 @@ function showToast(msg) {
 function resizeCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
+  positionFloatingUI();
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();

@@ -207,46 +207,46 @@ body, html {
 /* מדריך מקשים */
 #controlsHint {
   position: fixed;
-  bottom: 208px;
-  right: 14px;
-  background: rgba(10, 20, 15, 0.82);
-  border: 1px solid rgba(102, 187, 106, 0.45);
-  border-radius: 12px;
-  padding: 10px 14px;
-  font-size: 0.82rem;
-  line-height: 1.5;
+  bottom: 188px;
+  right: 12px;
+  background: rgba(10, 20, 15, 0.68);
+  border: 1px solid rgba(102, 187, 106, 0.4);
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 0.74rem;
+  line-height: 1.4;
   z-index: 50;
   pointer-events: none;
-  max-width: 330px;
+  max-width: 280px;
 }
 
-/* הודעות צפות */
+/* הודעות צפות קומפקטיות (שלא מסתירות את המסך) */
 #toastContainer {
   position: fixed;
-  top: 86px;
+  top: 66px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   z-index: 150;
   pointer-events: none;
-  width: 92%;
-  max-width: 520px;
+  width: 84%;
+  max-width: 420px;
 }
 
 .toast {
-  background: rgba(18, 30, 24, 0.94);
-  border: 2px solid #4caf50;
+  background: rgba(14, 24, 18, 0.86);
+  border: 1.5px solid #4caf50;
   color: #fff;
-  padding: 7px 14px;
+  padding: 4px 11px;
   border-radius: 999px;
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: 0.76rem;
   text-align: center;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-  animation: fadeToast 2.8s forwards;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+  animation: fadeToast 2.2s forwards;
 }
 
 @keyframes fadeToast {
@@ -654,97 +654,115 @@ body, html {
   z-index: 1;
 }
 
-/* התאמה ייעודית למסכי מובייל */
+/* התאמה ייעודית למסכי מובייל – תצוגה נקייה ורחבה בלי להסתיר את הזירה */
 @media (max-width: 768px) {
   .level-side-card {
-    top: 108px;
-    left: 8px;
-    padding: 6px 9px;
-    min-width: 132px;
+    top: 88px;
+    left: 6px;
+    padding: 4px 6px;
+    min-width: 108px;
+    max-width: 128px;
+    background: rgba(12, 20, 15, 0.68);
+    border-width: 1.5px;
   }
 
   .level-side-title {
-    font-size: 0.82rem;
+    font-size: 0.7rem;
   }
 
   .level-side-shape,
   .level-side-text,
-  .level-side-combo,
+  .level-side-combo {
+    font-size: 0.58rem;
+  }
+
   .level-side-record {
-    font-size: 0.68rem;
+    display: none;
   }
 
   .minimap-canvas {
-    right: 8px;
-    width: 96px;
-    height: 66px;
+    right: 6px;
+    width: 76px;
+    height: 52px;
+    opacity: 0.84;
   }
 
   .mob-btn.sprint-btn {
-    padding: 6px 10px;
-    min-width: 104px;
-    font-size: 0.76rem;
+    padding: 4px 8px;
+    min-width: 88px;
+    font-size: 0.68rem;
   }
   #controlsHint {
     display: none;
   }
 
   #hud {
-    padding: 5px 8px;
-    gap: 4px;
+    padding: 3px 5px;
+    gap: 3px;
+    background: rgba(12, 20, 15, 0.8);
+  }
+
+  .hud-group {
+    gap: 3px;
   }
 
   .stat-pill {
-    font-size: 0.76rem;
-    padding: 4px 7px;
+    font-size: 0.66rem;
+    padding: 2px 6px;
   }
 
   .hp-container {
-    font-size: 0.76rem;
-    padding: 3px 8px;
+    font-size: 0.66rem;
+    padding: 2px 6px;
   }
 
   .hp-bar-bg {
-    width: 60px;
-    height: 10px;
+    width: 48px;
+    height: 8px;
   }
 
   .action-btn {
-    font-size: 0.78rem;
-    padding: 5px 10px;
+    font-size: 0.66rem;
+    padding: 3px 6px;
   }
 
   .icon-btn {
-    width: 30px;
-    height: 30px;
-    font-size: 0.88rem;
+    width: 24px;
+    height: 24px;
+    font-size: 0.74rem;
   }
 
   #mobileControls {
-    bottom: 14px;
-    left: 12px;
-    right: 12px;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    opacity: 0.92;
   }
 
   .joystick-zone {
-    width: 116px;
-    height: 116px;
+    width: 102px;
+    height: 102px;
   }
 
   .joystick-knob {
-    width: 48px;
-    height: 48px;
+    width: 42px;
+    height: 42px;
+  }
+
+  .mobile-buttons {
+    gap: 6px;
   }
 
   .mob-btn {
-    padding: 11px 12px;
-    font-size: 0.85rem;
-    min-width: 82px;
+    padding: 9px 10px;
+    font-size: 0.78rem;
+    min-width: 72px;
+    border-radius: 14px;
   }
 
   .mob-btn.shoot {
-    padding: 12px 14px;
-    font-size: 0.9rem;
+    padding: 10px 12px;
+    font-size: 0.82rem;
   }
 
   .duel-hud {

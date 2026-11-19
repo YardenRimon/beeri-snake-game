@@ -41,11 +41,32 @@
       <button id="shopBtn" class="action-btn shop-btn">🛒 חנות שדרוגים</button>
       <button id="questsBtn" class="action-btn quest-btn" title="משימות לפרס כסף ויהלומים">📜 משימות</button>
       <button id="recordsBtn" class="action-btn records-btn" title="טבלת השיאים האישיים שלך">🏆 שיאים</button>
+      <button id="duelBtn" class="action-btn duel-btn" title="קרב חי אחד נגד השני בסריקת ברקוד QR">📱 קרב QR</button>
       <button id="difficultyBtn" class="action-btn diff-btn diff-hard" title="שינוי רמת קושי (רגיל / קשה / מטורף)">🔥 קשה</button>
       <button id="dayNightBtn" class="icon-btn" title="מחזור יום/לילה (24 שעות - לחץ להחלפה)">☀️</button>
       <button id="resetBtn" class="icon-btn" title="איפוס שמירה והתחלה מחדש">🔄</button>
     </div>
   </header>
+
+  <!-- סרגל קרב 1 נגד 1 (מופיע רק בזמן קרב QR חי) -->
+  <div id="duelHud" class="duel-hud hidden">
+    <div class="duel-fighter me">
+      <span id="duelMyName" class="duel-fighter-name">אני</span>
+      <div class="hp-bar-bg">
+        <div id="duelMyHpFill" class="hp-bar-fill"></div>
+      </div>
+      <span id="duelMyHpText" class="duel-hp-num">200/200</span>
+    </div>
+    <div id="duelScoreText" class="duel-score-pill">⚔️ 0 : 0</div>
+    <div class="duel-fighter opp">
+      <span id="duelOppName" class="duel-fighter-name">יריב</span>
+      <div class="hp-bar-bg">
+        <div id="duelOppHpFill" class="hp-bar-fill opp-hp-fill"></div>
+      </div>
+      <span id="duelOppHpText" class="duel-hp-num">200/200</span>
+    </div>
+    <button id="leaveDuelBtn" class="action-btn duel-exit-btn">🚪 יציאה</button>
+  </div>
 
   <!-- הודעות צפות (אכילה, מעבר עולם, חזרה לבית) -->
   <div id="toastContainer"></div>
@@ -70,7 +91,7 @@
       <div><strong>איך משחקים:</strong></div>
       <div>🖱️ <strong>עכבר:</strong> כיוון הנחש + קליק לירי ארס/לייזר</div>
       <div>➡️ <strong>חצים / WASD:</strong> תנועה מהירה וחלקה</div>
-      <div>⬆️ <strong>חץ למעלה / רווח:</strong> קפיצה להתחמקות מנחשים, ארס ומלכודות</div>
+      <div>⬆️ <strong>חץ למעלה / רווח:</strong> קפיצה להתחמקות מנחשים, נשר ובורות</div>
       <div>⬇️ <strong>חץ למטה:</strong> נשיכה | <strong>E / Shift:</strong> 🌀 הצלפה בזנב</div>
       <div>🌳 <strong>טיפ:</strong> אי אפשר לקפוץ מעל הנהר – הפל קודם עץ (נשיכה או ארס) לגשר!</div>
       <div>⚠️ <strong>זהירות:</strong> אם הראש שלך נוגע בגוף של עצמך – אתה נפסל!</div>
@@ -158,6 +179,69 @@
     </div>
   </div>
 
+  <!-- מודאל קרב 1 נגד 1 בסריקת ברקוד QR -->
+  <div id="duelModal" class="modal hidden">
+    <div class="modal-content duel-modal-content">
+      <div class="modal-header">
+        <h2>⚔️ קרב 1 נגד 1 בסריקת ברקוד (QR)</h2>
+        <button id="closeDuelBtn" class="close-btn">✖</button>
+      </div>
+
+      <div class="duel-name-row">
+        <label for="duelNameInput">השם שלך בקרב:</label>
+        <input id="duelNameInput" class="duel-input" type="text" maxlength="16" placeholder="למשל: בארי או אמא" />
+      </div>
+
+      <div class="duel-tabs">
+        <button id="tabHostDuel" class="duel-tab active" type="button">📱 הצג ברקוד (צור קרב)</button>
+        <button id="tabJoinDuel" class="duel-tab" type="button">📷 סרוק ברקוד / הצטרף</button>
+      </div>
+
+      <div id="duelStatusText" class="duel-status">מכין חיבור לקרב...</div>
+
+      <div id="duelHostPanel" class="duel-panel">
+        <canvas id="duelQrCanvas" width="210" height="210" class="duel-qr-canvas"></canvas>
+        <div class="duel-code-badge">קוד חדר: <strong id="duelRoomCodeDisplay">----</strong></div>
+        <p class="duel-hint">היריב יכול לסרוק את הברקוד במצלמת הטלפון הרגילה, או מתוך המשחק כדי להילחם מולך מיד!</p>
+        <div class="duel-actions-row">
+          <button id="newDuelRoomBtn" class="buy-btn" type="button">🔄 ברקוד חדש</button>
+          <button id="copyDuelLinkBtn" class="buy-btn" type="button">📋 העתק קישור</button>
+          <button id="shareDuelWaBtn" class="buy-btn duel-wa-btn" type="button">💬 שתף בוואטסאפ</button>
+        </div>
+      </div>
+
+      <div id="duelJoinPanel" class="duel-panel hidden">
+        <button id="startQrScanBtn" class="buy-btn duel-scan-btn" type="button">📷 פתח מצלמה לסריקת ברקוד</button>
+        <button id="stopQrScanBtn" class="buy-btn duel-exit-btn hidden" type="button">⏹️ סגור מצלמה</button>
+        <div id="qrCameraWrap" class="qr-camera-wrap hidden">
+          <video id="qrVideo" playsinline autoplay muted></video>
+          <div class="qr-scan-frame"></div>
+        </div>
+        <p class="duel-hint">או הקלידו את קוד החדר בן 4 הספרות מהמסך של השחקן השני:</p>
+        <div class="duel-join-row">
+          <input id="duelJoinCodeInput" class="duel-input duel-code-input" type="text" inputmode="numeric" maxlength="6" placeholder="קוד 4 ספרות" />
+          <button id="joinDuelCodeBtn" class="buy-btn" type="button">⚔️ הצטרף לקרב</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- מודאל סיום סיבוב קרב QR -->
+  <div id="duelResultModal" class="modal hidden">
+    <div class="modal-content duel-result-card">
+      <h2 id="duelResultTitle">🏆 ניצחת בקרב!</h2>
+      <p id="duelResultSubtitle" class="modal-subtitle"></p>
+      <div id="duelResultScore" class="duel-result-score">0 : 0</div>
+      <div class="duel-actions-row">
+        <button id="duelRematchBtn" class="buy-btn" type="button">🔄 סיבוב נוסף!</button>
+        <button id="duelExitAfterResultBtn" class="buy-btn duel-exit-btn" type="button">🚪 חזרה למשחק רגיל</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

@@ -4718,6 +4718,75 @@ document.getElementById('duelRematchBtn').addEventListener('click', () => {
   resetDuelRound();
 });
 
+// ============================================================================
+// התקנת המשחק כאפליקציה לדף הבית בטלפון (PWA + Service Worker)
+// ============================================================================
+let deferredInstallPrompt = null;
+const installBtn = document.getElementById('installBtn');
+const installModal = document.getElementById('installModal');
+const pwaInstallActionBtn = document.getElementById('pwaInstallActionBtn');
+
+function isRunningAsApp() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+    || window.navigator.standalone === true;
+}
+
+if (isRunningAsApp() && installBtn) {
+  installBtn.classList.add('hidden');
+}
+
+if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (installBtn) installBtn.classList.remove('hidden');
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  if (installBtn) installBtn.classList.add('hidden');
+  if (installModal) installModal.classList.add('hidden');
+  showToast('🎉 האפליקציה הותקנה בהצלחה בדף הבית!');
+});
+
+async function triggerAppInstall() {
+  if (deferredInstallPrompt) {
+    try {
+      deferredInstallPrompt.prompt();
+      const res = await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      if (res && res.outcome === 'accepted') {
+        if (installModal) installModal.classList.add('hidden');
+      }
+      return;
+    } catch (_) {}
+  }
+  if (installModal) installModal.classList.remove('hidden');
+}
+
+if (installBtn) {
+  installBtn.addEventListener('click', () => {
+    if (deferredInstallPrompt) triggerAppInstall();
+    else if (installModal) installModal.classList.remove('hidden');
+  });
+}
+if (pwaInstallActionBtn) {
+  pwaInstallActionBtn.addEventListener('click', () => {
+    if (deferredInstallPrompt) {
+      triggerAppInstall();
+    } else {
+      showToast('📲 בצעו את 2 השלבים שרשומים למטה לפי סוג הטלפון שלכם (Chrome או Safari)!');
+    }
+  });
+}
+const closeInstallBtn = document.getElementById('closeInstallBtn');
+if (closeInstallBtn) {
+  closeInstallBtn.addEventListener('click', () => installModal.classList.add('hidden'));
+}
+
 // הפעלת המשחק!
 initWorld(state.world);
 updateHUD();

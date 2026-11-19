@@ -303,6 +303,7 @@ function createWorldEagle() {
     altitude: 1.2,
     wingPhase: 0,
     following: false,
+    spotted: false,
     swoopTimer: 160,
     swoopDuration: 0,
     hitCooldown: 0,
@@ -2188,7 +2189,7 @@ function updateBurrowLaser() {
   }
 }
 
-// נשר נדיר (בדיוק 1 בכל עולם) – מופיע לעיתים רחוקות, מרחף, לפעמים עוקב וצולל
+// נשר נדיר (בדיוק 1 בכל עולם) – מופיע לעיתים רחוקות, וברגע שרואה אותך רודף בעוצמה שמשיגה אותך וצולל לתפיסה מיידית
 function updateWorldEagle(playerStats) {
   if (!worldEagle) worldEagle = createWorldEagle();
   worldEagle.wingPhase += 0.22;
@@ -2201,30 +2202,27 @@ function updateWorldEagle(playerStats) {
       worldEagle.x = fromLeft ? 40 : WORLD_WIDTH - 40;
       worldEagle.y = 220 + Math.random() * (WORLD_HEIGHT - 440);
       worldEagle.angle = Math.atan2(player.y - worldEagle.y, player.x - worldEagle.x);
-      worldEagle.following = Math.random() < 0.55;
+      worldEagle.following = false;
+      worldEagle.spotted = false;
       worldEagle.phase = 'warning';
-      worldEagle.timer = 105;
+      worldEagle.timer = 95;
       worldEagle.altitude = 1.15;
       worldEagle.swoopTimer = 110;
       worldEagle.swoopDuration = 0;
       worldEagle.dodgeNotified = false;
       SFX.eagle();
-      showToast(
-        worldEagle.following
-          ? '🦅 זהירות! הנשר של העולם הגיע ועוקב אחריך! התחמק או הסתתר במחילה!'
-          : '🦅 נשר נדיר מרחף בשמי העולם – שמור מרחק!'
-      );
+      showToast('🦅 הנשר של העולם הופיע בשמיים! היזהר שלא יראה אותך!');
     }
     return;
   }
 
   if (worldEagle.phase === 'warning') {
-    worldEagle.x += Math.cos(worldEagle.angle) * worldEagle.speed * 0.85;
-    worldEagle.y += Math.sin(worldEagle.angle) * worldEagle.speed * 0.85;
+    worldEagle.x += Math.cos(worldEagle.angle) * worldEagle.speed * 0.9;
+    worldEagle.y += Math.sin(worldEagle.angle) * worldEagle.speed * 0.9;
     worldEagle.timer--;
     if (worldEagle.timer <= 0) {
       worldEagle.phase = 'active';
-      worldEagle.timer = 400 + Math.floor(Math.random() * 90);
+      worldEagle.timer = 420 + Math.floor(Math.random() * 90);
     }
     return;
   }
@@ -2232,67 +2230,91 @@ function updateWorldEagle(playerStats) {
   if (worldEagle.phase === 'active') {
     const playerInBurrow = Math.hypot(player.x - HOME_BASE.x, player.y - HOME_BASE.y) < HOME_BASE.radius;
     const distFromBurrow = Math.hypot(worldEagle.x - HOME_BASE.x, worldEagle.y - HOME_BASE.y);
+    const distToPlayer = Math.hypot(player.x - worldEagle.x, player.y - worldEagle.y);
+    const spotRange = 640;
 
-    if (playerInBurrow && distFromBurrow < HOME_BASE.radius + 140) {
-      const awayAng = Math.atan2(worldEagle.y - HOME_BASE.y, worldEagle.x - HOME_BASE.x);
-      let diff = awayAng - worldEagle.angle;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      worldEagle.angle += diff * 0.08;
-    } else if (worldEagle.following && !playerInBurrow) {
-      const targetAngle = Math.atan2(player.y - worldEagle.y, player.x - worldEagle.x);
-      let diff = targetAngle - worldEagle.angle;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      worldEagle.angle += diff * 0.032;
+    if (playerInBurrow) {
+      worldEagle.spotted = false;
+      worldEagle.following = false;
+      if (distFromBurrow < HOME_BASE.radius + 140) {
+        const awayAng = Math.atan2(worldEagle.y - HOME_BASE.y, worldEagle.x - HOME_BASE.x);
+        let diff = awayAng - worldEagle.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        worldEagle.angle += diff * 0.08;
+      } else {
+        worldEagle.angle += Math.sin(worldEagle.wingPhase * 0.08) * 0.014;
+      }
     } else {
-      worldEagle.angle += Math.sin(worldEagle.wingPhase * 0.08) * 0.014;
+      if (!worldEagle.spotted && distToPlayer < spotRange) {
+        worldEagle.spotted = true;
+        worldEagle.following = true;
+        worldEagle.timer = Math.max(worldEagle.timer, 360);
+        SFX.eagle();
+        addFloatingText(worldEagle.x, worldEagle.y - 36, '🦅 ראה אותך!', '#ffab40');
+        showToast('🦅 הנשר ראה אותך ורודף אחריך! ברח למחילה או קפוץ בזמן!');
+      }
+
+      if (worldEagle.spotted) {
+        const lead = player.speed > 0 ? Math.min(110, distToPlayer * 0.28) : 0;
+        const aimX = player.x + Math.cos(player.angle) * lead;
+        const aimY = player.y + Math.sin(player.angle) * lead;
+        const targetAngle = Math.atan2(aimY - worldEagle.y, aimX - worldEagle.x);
+        let diff = targetAngle - worldEagle.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        worldEagle.angle += diff * 0.12;
+      } else {
+        worldEagle.angle += Math.sin(worldEagle.wingPhase * 0.08) * 0.014;
+      }
     }
 
-    worldEagle.x += Math.cos(worldEagle.angle) * worldEagle.speed;
-    worldEagle.y += Math.sin(worldEagle.angle) * worldEagle.speed;
+    const moveSpeed = (worldEagle.spotted && !playerInBurrow)
+      ? Math.max(worldEagle.speed, Math.min(11.4, playerStats.baseSpeed * 1.16 + 0.65))
+      : worldEagle.speed;
+    worldEagle.x += Math.cos(worldEagle.angle) * moveSpeed;
+    worldEagle.y += Math.sin(worldEagle.angle) * moveSpeed;
     if (worldEagle.x < 90 || worldEagle.x > WORLD_WIDTH - 90) worldEagle.angle = Math.PI - worldEagle.angle;
     if (worldEagle.y < 90 || worldEagle.y > WORLD_HEIGHT - 90) worldEagle.angle = -worldEagle.angle;
     worldEagle.x = Math.max(70, Math.min(WORLD_WIDTH - 70, worldEagle.x));
     worldEagle.y = Math.max(70, Math.min(WORLD_HEIGHT - 70, worldEagle.y));
 
-    if (worldEagle.swoopDuration > 0) {
-      worldEagle.swoopDuration--;
-      const progress = 1 - worldEagle.swoopDuration / 68;
-      worldEagle.altitude = 1.0 - Math.sin(progress * Math.PI) * 0.82;
+    const updatedDistToPlayer = Math.hypot(player.x - worldEagle.x, player.y - worldEagle.y);
+    if (worldEagle.spotted && !playerInBurrow && updatedDistToPlayer < 210 && worldEagle.hitCooldown <= 0) {
+      if (worldEagle.swoopDuration <= 0) {
+        worldEagle.swoopDuration = 54;
+        worldEagle.dodgeNotified = false;
+      }
+      worldEagle.altitude = Math.max(0.18, worldEagle.altitude - 0.085);
 
-      if (worldEagle.altitude < 0.36 && !playerInBurrow && worldEagle.hitCooldown <= 0) {
-        const d = Math.hypot(worldEagle.x - player.x, worldEagle.y - player.y);
-        if (d < playerStats.radius + 24) {
-          if (player.jumpZ >= 8 || player.invulnerableTimer > 0) {
-            if (!worldEagle.dodgeNotified) {
-              worldEagle.dodgeNotified = true;
-              addFloatingText(player.x, player.y - 38, '🦅 התחמקת מהנשר!', '#81d4fa');
-            }
-          } else {
-            worldEagle.hitCooldown = 110;
-            worldEagle.swoopDuration = 0;
-            worldEagle.altitude = 0.95;
-            spawnParticles(player.x, player.y, '#ff5252', 22);
-            sendPlayerHome('הנשר תפס אותך ונפסלת!');
-            return;
+      if (worldEagle.altitude < 0.48 && updatedDistToPlayer < playerStats.radius + 26) {
+        if (player.jumpZ >= 8 || player.invulnerableTimer > 0) {
+          if (!worldEagle.dodgeNotified) {
+            worldEagle.dodgeNotified = true;
+            addFloatingText(player.x, player.y - 38, '🦅 התחמקת מהנשר!', '#81d4fa');
           }
+        } else {
+          worldEagle.hitCooldown = 110;
+          worldEagle.swoopDuration = 0;
+          worldEagle.spotted = false;
+          worldEagle.following = false;
+          worldEagle.altitude = 0.95;
+          spawnParticles(player.x, player.y, '#ff5252', 22);
+          sendPlayerHome('הנשר תפס אותך ונפסלת!');
+          return;
         }
       }
     } else {
+      if (worldEagle.swoopDuration > 0) worldEagle.swoopDuration--;
       worldEagle.altitude += (1.0 - worldEagle.altitude) * 0.08;
-      worldEagle.swoopTimer--;
-      if (worldEagle.swoopTimer <= 0 && !playerInBurrow) {
-        worldEagle.swoopDuration = 68;
-        worldEagle.swoopTimer = 190 + Math.floor(Math.random() * 80);
-        worldEagle.dodgeNotified = false;
-      }
     }
 
     worldEagle.timer--;
     if (worldEagle.timer <= 0) {
       worldEagle.phase = 'leaving';
       worldEagle.swoopDuration = 0;
+      worldEagle.spotted = false;
+      worldEagle.following = false;
       worldEagle.timer = 150;
       worldEagle.angle = worldEagle.x < WORLD_WIDTH / 2 ? Math.PI : 0;
     }
@@ -2306,6 +2328,8 @@ function updateWorldEagle(playerStats) {
     worldEagle.timer--;
     if (worldEagle.timer <= 0 || worldEagle.x < -120 || worldEagle.x > WORLD_WIDTH + 120) {
       worldEagle.phase = 'hidden';
+      worldEagle.spotted = false;
+      worldEagle.following = false;
       // מופיע רק לעיתים רחוקות (~40 עד 65 שניות בין הופעות)
       worldEagle.timer = 2400 + Math.floor(Math.random() * 1500);
     }

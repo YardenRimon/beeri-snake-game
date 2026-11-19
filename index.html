@@ -40,6 +40,7 @@
       </div>
       <button id="shopBtn" class="action-btn shop-btn">🛒 חנות שדרוגים</button>
       <button id="questsBtn" class="action-btn quest-btn" title="משימות לפרס כסף ויהלומים">📜 משימות</button>
+      <button id="recordsBtn" class="action-btn records-btn" title="טבלת השיאים האישיים שלך">🏆 שיאים</button>
       <button id="difficultyBtn" class="action-btn diff-btn diff-hard" title="שינוי רמת קושי (רגיל / קשה / מטורף)">🔥 קשה</button>
       <button id="dayNightBtn" class="icon-btn" title="מחזור יום/לילה (24 שעות - לחץ להחלפה)">☀️</button>
       <button id="resetBtn" class="icon-btn" title="איפוס שמירה והתחלה מחדש">🔄</button>
@@ -53,14 +54,26 @@
   <main id="gameContainer">
     <canvas id="gameCanvas"></canvas>
 
+    <!-- חלונית רמה ושיא בצד המסך (עליית רמה כל 4 עולמות) -->
+    <div id="levelSideCard" class="level-side-card" title="התקדמות לרמה הבאה ושיא אישי">
+      <div class="level-side-title">⭐ רמה <span id="sideLevelNum">1</span></div>
+      <div class="level-side-shape" id="sideShapeName">עיגולים ירוקים</div>
+      <div class="level-side-bar-bg">
+        <div id="levelXpFill" class="level-side-bar-fill"></div>
+      </div>
+      <div class="level-side-text">🌍 <span id="xpCount">0</span> / <span id="xpNeed">4</span> עולמות לרמה הבאה</div>
+      <div class="level-side-record">🏆 שיא: עולם <span id="sideBestWorld">1</span> | <span id="sideBestScore">0</span> נק'</div>
+    </div>
+
     <!-- מדריך מקשים מהיר על המסך -->
     <div id="controlsHint">
       <div><strong>איך משחקים:</strong></div>
       <div>🖱️ <strong>עכבר:</strong> כיוון הנחש + קליק לירי ארס/לייזר</div>
-      <div>➡️ <strong>חץ ימינה / W:</strong> התקדמות | ⬅️ <strong>חץ שמאלה / S:</strong> תנועה אחורה</div>
-      <div>⬆️ <strong>חץ למעלה / רווח:</strong> קפיצה להתחמקות מנחשים וארס</div>
-      <div>⬇️ <strong>חץ למטה:</strong> נשיכה חזקה של נחש או עץ שלידך</div>
+      <div>➡️ <strong>חצים / WASD:</strong> תנועה מהירה וחלקה</div>
+      <div>⬆️ <strong>חץ למעלה / רווח:</strong> קפיצה להתחמקות מנחשים, ארס ומלכודות</div>
+      <div>⬇️ <strong>חץ למטה:</strong> נשיכה | <strong>E / Shift:</strong> 🌀 הצלפה בזנב</div>
       <div>🌳 <strong>טיפ:</strong> אי אפשר לקפוץ מעל הנהר – הפל קודם עץ (נשיכה או ארס) לגשר!</div>
+      <div>⚠️ <strong>זהירות:</strong> אם הראש שלך נוגע בגוף של עצמך – אתה נפסל!</div>
     </div>
 
     <!-- פקדי מגע לטלפון / מסך מגע -->
@@ -69,9 +82,10 @@
         <div class="joystick-knob" id="joystickKnob"></div>
       </div>
       <div class="mobile-buttons">
+        <button id="btnShoot" class="mob-btn shoot">🎯 ירי</button>
+        <button id="btnTailWhip" class="mob-btn tail">🌀 הצלפת זנב</button>
         <button id="btnJump" class="mob-btn jump">⬆️ קפיצה</button>
         <button id="btnBite" class="mob-btn bite">⬇️ נשיכה</button>
-        <button id="btnShoot" class="mob-btn shoot">🎯 ירי ארס/לייזר</button>
       </div>
     </div>
   </main>
@@ -114,6 +128,33 @@
       </div>
       <p class="modal-subtitle">בצע משימות במפה וקבל כסף ויהלומים מיד עם ההשלמה!</p>
       <div id="questsList" class="shop-grid"></div>
+    </div>
+  </div>
+
+  <!-- מודאל טבלת שיאים אישיים -->
+  <div id="recordsModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🏆 טבלת השיאים שלך</h2>
+        <button id="closeRecordsBtn" class="close-btn">✖</button>
+      </div>
+      <div id="recordsSummary" class="records-summary"></div>
+      <h3 style="margin: 14px 0 8px; color: #ffd54f;">🥇 הריצות הכי טובות שלך</h3>
+      <div class="records-table-wrap">
+        <table class="records-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>ניקוד</th>
+              <th>עולם</th>
+              <th>רמה</th>
+              <th>נחשים</th>
+              <th>קושי</th>
+            </tr>
+          </thead>
+          <tbody id="recordsTableBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 

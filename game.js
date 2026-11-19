@@ -6,15 +6,29 @@ const SAVE_KEY = 'beeri_snake_game_save_v2';
 const LEGACY_SAVE_KEY = 'beeri_snake_game_save_v1';
 const MAX_WORLDS = 150;
 
-// הגדרות צורות וצבעים לפי רמת הנחש
+// מיני נחשים אמיתיים לפי רמה (מהנחש הראשון תלום-קשקשים, דרך צפע מצוי וצפע החרמון, ועד לאנקונדה ברמה הסופית – לפי רמת סכנה ומראה אמיתיים!)
 const LEVEL_STYLES = [
-  { name: 'עיגולים ירוקים', shape: 'circle', primary: '#4caf50', secondary: '#81c784', glow: '#a5d6a7' },
-  { name: 'מעוינים כחולים', shape: 'diamond', primary: '#29b6f6', secondary: '#0288d1', glow: '#81d4fa' },
-  { name: 'משושים כתומים', shape: 'hexagon', primary: '#ff9800', secondary: '#f57c00', glow: '#ffcc80' },
-  { name: 'כוכבים סגולים', shape: 'star', primary: '#ab47bc', secondary: '#7b1fa2', glow: '#e1bee7' },
-  { name: 'קשקשי דרקון טורקיז', shape: 'triangle', primary: '#00bfa5', secondary: '#00897b', glow: '#a7ffeb' },
-  { name: 'טבעות זהב מלכותי', shape: 'ring', primary: '#ffd600', secondary: '#ffab00', glow: '#ffff8d' }
+  { name: 'תלום-קשקשים', shape: 'circle', primary: '#558b2f', secondary: '#7cb342', glow: '#c5e1a5', danger: 1, pattern: 'montpellier' },
+  { name: 'צפע מצוי', shape: 'diamond', primary: '#b0937b', secondary: '#5d4037', glow: '#d7ccc8', danger: 2, pattern: 'viper' },
+  { name: 'צפע החרמון', shape: 'hexagon', primary: '#8d6e63', secondary: '#4e342e', glow: '#d7ccc8', danger: 3, pattern: 'hermon_viper' },
+  { name: 'אפעה מגוון', shape: 'triangle', primary: '#d84315', secondary: '#8d2b0b', glow: '#ffab91', danger: 4, pattern: 'sawscale' },
+  { name: 'עכן חרטומים', shape: 'triangle', primary: '#d4a373', secondary: '#9c6644', glow: '#faedcd', danger: 5, pattern: 'horned' },
+  { name: 'עכסן אימתני', shape: 'diamond', primary: '#c97b36', secondary: '#6d4c41', glow: '#ffcc80', danger: 6, pattern: 'rattle' },
+  { name: 'נחש אלמוגים', shape: 'ring', primary: '#e53935', secondary: '#fdd835', glow: '#ff8a80', danger: 7, pattern: 'coral' },
+  { name: 'פיתון מתכדר', shape: 'circle', primary: '#5d4037', secondary: '#ffb300', glow: '#ffe082', danger: 8, pattern: 'python' },
+  { name: 'קוברה מצרית', shape: 'triangle', primary: '#6d4c41', secondary: '#ffca28', glow: '#ffe57f', danger: 9, pattern: 'cobra' },
+  { name: 'ממבה ירוקה', shape: 'diamond', primary: '#00c853', secondary: '#00796b', glow: '#69f0ae', danger: 10, pattern: 'mamba' },
+  { name: 'ממבה שחורה', shape: 'star', primary: '#263238', secondary: '#607d8b', glow: '#cfd8dc', danger: 11, pattern: 'black_mamba' },
+  { name: 'קוברה מלכותית', shape: 'hexagon', primary: '#33691e', secondary: '#ffd600', glow: '#f4ff81', danger: 12, pattern: 'king_cobra' },
+  { name: 'טאיפן פנים-יבשתי', shape: 'star', primary: '#ff8f00', secondary: '#263238', glow: '#ffd180', danger: 13, pattern: 'taipan' },
+  { name: 'פיתון מרושת ענק', shape: 'ring', primary: '#00897b', secondary: '#ffb300', glow: '#a7ffeb', danger: 14, pattern: 'retic_python' },
+  { name: 'אנקונדה ענקית 👑', shape: 'ring', primary: '#1b5e20', secondary: '#2e7d32', glow: '#ffff8d', danger: 15, pattern: 'anaconda' }
 ];
+
+function getSnakeSpeciesStyle(level) {
+  const idx = Math.min(Math.max(1, Math.floor(level || 1)) - 1, LEVEL_STYLES.length - 1);
+  return LEVEL_STYLES[idx];
+}
 
 // 10 סוגי סביבות טבע אמיתיות (יוצרות 150 עולמות ייחודיים מהטבע: עולם 1 יער, עולם 2 ארץ סלעים ואבנים, עולם 3 מדבר וכו')
 const WORLD_BIOMES = [
@@ -51,6 +65,7 @@ function getWorldTheme(worldNum) {
 
 // רמות קושי במשחק (ברירת מחדל: קשה)
 const DIFFICULTIES = {
+  easy: { label: '🌱 קלילה', hpMult: 0.65, speedMult: 0.78, dmgMult: 0.55, enemySpit: false, spitCooldown: 220, cssClass: 'diff-easy' },
   normal: { label: '⚔️ רגיל', hpMult: 1.0, speedMult: 1.0, dmgMult: 1.0, enemySpit: false, spitCooldown: 180, cssClass: 'diff-normal' },
   hard: { label: '🔥 קשה', hpMult: 1.55, speedMult: 1.2, dmgMult: 1.5, enemySpit: true, spitCooldown: 155, cssClass: 'diff-hard' },
   insane: { label: '💀 מטורף', hpMult: 2.2, speedMult: 1.35, dmgMult: 2.2, enemySpit: true, spitCooldown: 110, cssClass: 'diff-insane' }
@@ -309,6 +324,81 @@ function createRareEgg(delaySec = 4) {
   };
 }
 
+let treasureChests = [];
+
+function createWorldChests() {
+  const rxMin = RIVER.x + RIVER.width + 210;
+  const rxSpan = WORLD_WIDTH - rxMin - 200;
+  return [
+    // 2 תיבות אוצר מעבר לנהר (+20₪ +30💎 כל אחת בפתיחה)
+    {
+      id: 'instant_1',
+      kind: 'instant',
+      x: rxMin + Math.random() * rxSpan,
+      y: 240 + Math.random() * 500,
+      money: 20,
+      diamonds: 30,
+      collected: false,
+      carried: false,
+      broken: false
+    },
+    {
+      id: 'instant_2',
+      kind: 'instant',
+      x: rxMin + Math.random() * rxSpan,
+      y: 1060 + Math.random() * 500,
+      money: 20,
+      diamonds: 30,
+      collected: false,
+      carried: false,
+      broken: false
+    },
+    // תיבת משלוח לפני הנהר (+10₪ +10💎 אם מביאים למחילה בלי להיפגע)
+    {
+      id: 'fragile_before',
+      kind: 'fragile',
+      x: HOME_BASE.x + HOME_BASE.radius + 170 + Math.random() * 260,
+      y: 280 + Math.random() * (WORLD_HEIGHT - 560),
+      money: 10,
+      diamonds: 10,
+      collected: false,
+      carried: false,
+      broken: false
+    },
+    // תיבת משלוח זהה מעבר לנהר (+10₪ +10💎 אם מביאים למחילה בלי להיפגע)
+    {
+      id: 'fragile_after',
+      kind: 'fragile',
+      x: rxMin + 20 + Math.random() * Math.max(120, rxSpan - 40),
+      y: 320 + Math.random() * (WORLD_HEIGHT - 640),
+      money: 10,
+      diamonds: 10,
+      collected: false,
+      carried: false,
+      broken: false
+    }
+  ];
+}
+
+function breakCarriedFragileChests(silent = false) {
+  let anyBroken = false;
+  for (const ch of treasureChests) {
+    if (ch.kind === 'fragile' && ch.carried && !ch.collected) {
+      ch.carried = false;
+      ch.collected = true;
+      ch.broken = true;
+      anyBroken = true;
+    }
+  }
+  if (anyBroken && !silent) {
+    SFX.hurt();
+    spawnParticles(player.x, player.y, '#80d8ff', 22);
+    addFloatingText(player.x, player.y - 44, '💥 התיבה נשברה!', '#80d8ff');
+    showToast('💥 נפגעת! תיבת המשלוח נשברה – צריך להביא אותה למחילה בלי להיפגע!');
+  }
+  return anyBroken;
+}
+
 // ============================================================================
 // מערכת אפקטי קול וצלילי טבע (Web Audio API – ללא צורך בקבצים חיצוניים)
 // ============================================================================
@@ -521,14 +611,16 @@ const player = {
 
 function getPlayerStats() {
   const u = state.upgrades;
+  const species = getSnakeSpeciesStyle(state.level);
+  const dangerBonus = Math.max(0, (species.danger || 1) - 1);
   const goldTier = u.hasArmorSuit ? (u.goldSuitLevel || 1) : 0;
-  const maxHp = 100 + (u.hpLevel - 1) * 35 + (u.hasArmorSuit ? 60 + (goldTier - 1) * 40 : 0);
-  const baseSpeed = Math.min(9.8, 4.0 + (u.speedLevel - 1) * 0.45);
-  const biteDamage = 25 + (u.biteLevel - 1) * 15 + (u.hasArtificialTeeth ? 35 : 0);
-  const tailWhipDamage = 28 + ((u.tailWhipLevel || 1) - 1) * 18 + state.level * 5;
+  const maxHp = 100 + (u.hpLevel - 1) * 35 + dangerBonus * 18 + (u.hasArmorSuit ? 60 + (goldTier - 1) * 40 : 0);
+  const baseSpeed = Math.min(10.0, 4.0 + (u.speedLevel - 1) * 0.45 + Math.min(dangerBonus * 0.08, 1.1));
+  const biteDamage = 25 + (u.biteLevel - 1) * 15 + dangerBonus * 7 + (u.hasArtificialTeeth ? 35 : 0);
+  const tailWhipDamage = 28 + ((u.tailWhipLevel || 1) - 1) * 18 + state.level * 5 + dangerBonus * 4;
   const tailWhipRange = 16 + Math.min(state.level * 2.2, 26) + 95 + ((u.tailWhipLevel || 1) - 1) * 20;
-  const venomDamage = 22 + (u.venomLevel - 1) * 15;
-  const laserDamage = 32 + (u.laserLevel - 1) * 18;
+  const venomDamage = 22 + (u.venomLevel - 1) * 15 + dangerBonus * 6;
+  const laserDamage = 32 + (u.laserLevel - 1) * 18 + dangerBonus * 6;
   const goldCannonCount = u.hasArmorSuit ? Math.min(4, 1 + goldTier) : 0;
   const goldCannonDamage = 5 + Math.max(0, goldTier - 1) * 2;
   const radius = 16 + Math.min(state.level * 2.2, 26);
@@ -598,6 +690,7 @@ function initWorld(worldNum) {
   crossedRiverThisWorld = false;
   worldEagle = createWorldEagle();
   rareEgg = createRareEgg(3);
+  treasureChests = createWorldChests();
   ensureQuests();
   saveState();
 
@@ -688,21 +781,24 @@ function spawnWorldBoss() {
 
 function spawnEnemySnake(x, y, level, isBurglar = false, isBoss = false) {
   const diffCfg = getDifficultyConfig();
-  const style = LEVEL_STYLES[(level - 1) % LEVEL_STYLES.length];
+  const style = getSnakeSpeciesStyle(level);
+  const dangerBonus = Math.max(0, (style.danger || 1) - 1);
+  const dangerHpMult = 1 + dangerBonus * 0.09;
   const radius = 13 + Math.min(level * 2.1, 25) + (isBoss ? 10 : 0);
   const maxHp = isBoss
-    ? Math.round((180 + level * 45 + (state.world - 1) * 40) * diffCfg.hpMult)
-    : Math.round((45 + level * 26 + (state.world - 1) * 10) * diffCfg.hpMult);
+    ? Math.round((180 + level * 45 + (state.world - 1) * 40) * diffCfg.hpMult * dangerHpMult)
+    : Math.round((45 + level * 26 + (state.world - 1) * 10) * diffCfg.hpMult * dangerHpMult);
   const segCount = 6 + Math.min(level * 2, 16) + (isBoss ? 6 : 0);
   const segs = [];
   for (let i = 0; i < segCount; i++) {
     segs.push({ x: x - i * 10, y });
   }
+  const speedDanger = Math.min(dangerBonus * 0.06, 0.85);
   const baseSpeed = isBurglar
     ? (2.6 + Math.min(state.world * 0.05, 1.0))
     : isBoss
-      ? (2.25 + Math.min(state.world * 0.08, 1.4))
-      : (1.9 + Math.min(level * 0.14 + (state.world - 1) * 0.06, 2.0));
+      ? (2.25 + Math.min(state.world * 0.08, 1.4) + speedDanger * 0.5)
+      : (1.9 + Math.min(level * 0.14 + (state.world - 1) * 0.06, 2.0) + speedDanger);
   enemies.push({
     x,
     y,
@@ -1293,7 +1389,7 @@ function checkWorldProgress() {
   if (state.levelProgress >= 3) {
     state.levelProgress = 0;
     state.level += 1;
-    const newStyle = LEVEL_STYLES[(state.level - 1) % LEVEL_STYLES.length];
+    const newStyle = getSnakeSpeciesStyle(state.level);
     const stats = getPlayerStats();
     player.maxHp = stats.maxHp;
     player.hp = player.maxHp;
@@ -1328,6 +1424,9 @@ function sendPlayerHome(reason) {
   if (rareEgg && rareEgg.carried) {
     rareEgg = createRareEgg(6);
     showToast('💔 הביצה הנדירה נאבדה בדרך! תוכל לנסות שוב מעבר לנהר.');
+  }
+  if (breakCarriedFragileChests(true)) {
+    showToast('💥 תיבת המשלוח נשברה בדרך למחילה – צריך לחזור בלי להיפגע!');
   }
   spawnParticles(player.x, player.y, '#ff1744', 25);
   player.x = HOME_BASE.x;
@@ -1511,15 +1610,60 @@ function update() {
       rareEgg.x = player.x;
       rareEgg.y = player.y - 10;
       if (Math.hypot(player.x - HOME_BASE.x, player.y - HOME_BASE.y) < HOME_BASE.radius) {
-        state.money += 25;
-        state.diamonds += 25;
+        state.money += 70;
+        state.diamonds += 100;
         SFX.victory();
         spawnParticles(HOME_BASE.x, HOME_BASE.y, '#ffd600', 30);
-        addFloatingText(HOME_BASE.x, HOME_BASE.y - 40, '🥚 ביצה נדירה! +25₪ +25💎', '#69f0ae');
-        showToast('🥚🏆 הבאת את ביצת הנחש הנדירה למחילה! קיבלת +25₪ ו-+25💎!');
+        addFloatingText(HOME_BASE.x, HOME_BASE.y - 40, '🥚 ביצה נדירה! +70₪ +100💎', '#69f0ae');
+        showToast('🥚🏆 הבאת את ביצת הנחש הנדירה למחילה! קיבלת +70₪ ו-+100💎!');
         rareEgg = createRareEgg(10);
         saveState();
         updateHUD();
+      }
+    }
+  }
+
+  // איסוף תיבות אוצר (מעבר לנהר) ותיבות משלוח ללא פגיעה (לפני ואחרי הנהר)
+  let carriedFragileIdx = 0;
+  for (const ch of treasureChests) {
+    if (ch.collected) continue;
+    if (ch.kind === 'instant') {
+      if (Math.hypot(player.x - ch.x, player.y - ch.y) < stats.radius + 28) {
+        ch.collected = true;
+        state.money += ch.money;
+        state.diamonds += ch.diamonds;
+        SFX.victory();
+        spawnParticles(ch.x, ch.y, '#ffd600', 28);
+        addFloatingText(ch.x, ch.y - 34, `🧰 אוצר! +${ch.money}₪ +${ch.diamonds}💎`, '#ffd600');
+        showToast(`🧰✨ פתחת תיבת אוצר מעבר לנהר! קיבלת +${ch.money}₪ ו-+${ch.diamonds}💎!`);
+        saveState();
+        updateHUD();
+      }
+    } else if (ch.kind === 'fragile') {
+      if (!ch.carried) {
+        if (Math.hypot(player.x - ch.x, player.y - ch.y) < stats.radius + 26) {
+          ch.carried = true;
+          SFX.eat();
+          addFloatingText(player.x, player.y - 36, '📦 הבא למחילה בלי פגיעה!', '#80d8ff');
+          showToast(`📦 אספת תיבת משלוח! הבא אותה למחילה בלי להיפגע (+${ch.money}₪ +${ch.diamonds}💎)!`);
+        }
+      } else {
+        const idxOffset = carriedFragileIdx === 0 ? -12 : 12;
+        carriedFragileIdx++;
+        ch.x = player.x + idxOffset;
+        ch.y = player.y - 18;
+        if (Math.hypot(player.x - HOME_BASE.x, player.y - HOME_BASE.y) < HOME_BASE.radius) {
+          ch.collected = true;
+          ch.carried = false;
+          state.money += ch.money;
+          state.diamonds += ch.diamonds;
+          SFX.victory();
+          spawnParticles(HOME_BASE.x, HOME_BASE.y, '#40c4ff', 28);
+          addFloatingText(HOME_BASE.x, HOME_BASE.y - 42, `📦 נמסרה! +${ch.money}₪ +${ch.diamonds}💎`, '#80d8ff');
+          showToast(`📦🏆 הבאת תיבת משלוח למחילה בלי להיפגע! קיבלת +${ch.money}₪ ו-+${ch.diamonds}💎!`);
+          saveState();
+          updateHUD();
+        }
       }
     }
   }
@@ -1765,11 +1909,13 @@ function updateEnemies(playerStats) {
         continue;
       }
     } else {
+      const enDangerBonus = Math.max(0, ((en.style && en.style.danger) || 1) - 1);
+      const enDangerMult = 1 + enDangerBonus * 0.08;
       const distToPlayer = Math.hypot(player.x - en.x, player.y - en.y);
-      const chaseRange = en.isBoss ? 1400 : (400 + Math.min(state.world * 10, 200));
+      const chaseRange = en.isBoss ? 1400 : (400 + Math.min(state.world * 10 + enDangerBonus * 16, 360));
 
       if ((en.level > state.level || en.isBoss) && playerOutsideHome && distToPlayer < chaseRange) {
-        // נחשים גדולים ובוסים רודפים אחרי השחקן, מסתערים ויורקים ארס
+        // נחשים גדולים ובוסים רודפים אחרי השחקן, מסתערים ויורקים ארס (לפי רמת הסכנה של המין)
         if (en.dashCooldown > 0) en.dashCooldown--;
         if (en.dashTelegraph > 0) {
           en.dashTelegraph--;
@@ -1779,7 +1925,7 @@ function updateEnemies(playerStats) {
 
         if (en.dashCooldown <= 0 && en.dashTelegraph === 0 && en.dashTimer === 0 && distToPlayer < 320) {
           en.dashTelegraph = 24;
-          en.dashCooldown = en.isBoss ? 140 : 190;
+          en.dashCooldown = Math.max(85, (en.isBoss ? 140 : 190) - enDangerBonus * 5);
         }
 
         const targetAngle = Math.atan2(player.y - en.y, player.x - en.x);
@@ -1791,7 +1937,7 @@ function updateEnemies(playerStats) {
 
         // ירי ארס סגול מצד נחשים חזקים (ברמה קשה/מטורפת) ומצד הבוס תמיד!
         if ((diffCfg.enemySpit || en.isBoss) && en.spitCooldown <= 0 && distToPlayer < 420) {
-          en.spitCooldown = (en.isBoss ? 105 : diffCfg.spitCooldown) + Math.floor(Math.random() * 45);
+          en.spitCooldown = Math.max(60, (en.isBoss ? 105 : diffCfg.spitCooldown) - enDangerBonus * 3) + Math.floor(Math.random() * 45);
           const aim = Math.atan2(player.y - en.y, player.x - en.x);
           const sp = 6.2 * diffCfg.speedMult;
           enemyProjectiles.push({
@@ -1799,7 +1945,7 @@ function updateEnemies(playerStats) {
             y: en.y + Math.sin(aim) * en.radius,
             vx: Math.cos(aim) * sp,
             vy: Math.sin(aim) * sp,
-            damage: Math.round((10 + en.level * 3) * diffCfg.dmgMult * (en.isBoss ? 1.25 : 1)),
+            damage: Math.round((10 + en.level * 3) * diffCfg.dmgMult * enDangerMult * (en.isBoss ? 1.25 : 1)),
             life: 68
           });
         }
@@ -1840,7 +1986,7 @@ function updateEnemies(playerStats) {
       if (dist < en.radius + playerStats.radius) {
         if (en.level > state.level && !en.isBoss) {
           if (player.invulnerableTimer <= 0) {
-            sendPlayerHome(`נחש גדול ברמה ${en.level} תפס אותך`);
+            sendPlayerHome(`${en.style.name} (רמה ${en.level}) תפס אותך`);
             break;
           }
         } else {
@@ -1849,16 +1995,18 @@ function updateEnemies(playerStats) {
             player.biteAnim = 10;
             damageEnemy(i, playerStats.biteDamage, '🦷 נשיכה!');
           }
-          // בוסים ונחשים באותה רמה/קטנים נושכים בחזרה בעוצמה לפי רמת הקושי
+          // בוסים ונחשים באותה רמה/קטנים נושכים בחזרה בעוצמה לפי רמת הקושי והסכנה של המין
           if (en.hp > 0 && en.biteCooldown <= 0 && player.invulnerableTimer <= 0) {
             en.biteCooldown = en.isBoss ? 28 : (en.level === state.level ? 32 : 48);
             const rawRet = en.isBoss ? (16 + en.level * 4) : (en.level === state.level ? (10 + en.level * 3) : (4 + en.level));
-            const retDmg = Math.round(rawRet * diffCfg.dmgMult);
+            const retDangerMult = 1 + Math.max(0, ((en.style && en.style.danger) || 1) - 1) * 0.08;
+            const retDmg = Math.round(rawRet * diffCfg.dmgMult * retDangerMult);
             player.hp -= retDmg;
+            breakCarriedFragileChests(false);
             addFloatingText(player.x, player.y - 32, `-${retDmg} ❤️`, '#ff5252');
             updateHUD();
             if (player.hp <= 0) {
-              sendPlayerHome(en.isBoss ? `בוס עולם ${state.world} הביס אותך` : 'נגמרו לך החיים בקרב');
+              sendPlayerHome(en.isBoss ? `בוס ${en.style.name} הביס אותך` : 'נגמרו לך החיים בקרב');
               break;
             }
           }
@@ -1903,6 +2051,7 @@ function updateEnemyProjectiles(playerStats) {
       const dist = Math.hypot(ep.x - player.x, ep.y - player.y);
       if (dist < playerStats.radius + 9) {
         player.hp -= ep.damage;
+        breakCarriedFragileChests(false);
         spawnParticles(player.x, player.y, '#d500f9', 12);
         addFloatingText(player.x, player.y - 30, `💜 ארס אויב! -${ep.damage}`, '#ea80fc');
         enemyProjectiles.splice(i, 1);
@@ -2379,7 +2528,10 @@ function draw() {
       en.style.shape,
       en.isBurglar ? '#d50000' : en.style.primary,
       en.style.secondary,
-      en.isBoss
+      en.isBoss,
+      false,
+      0,
+      en.style
     );
     drawSnakeEyes(en.x, en.y, en.angle, en.radius, en.isBoss, false);
 
@@ -2406,12 +2558,12 @@ function draw() {
     ctx.textAlign = 'center';
     ctx.fillStyle = en.isBoss ? '#ffd600' : (isSmallerOrEqual ? '#b9f6ca' : '#ff8a80');
     const tag = en.isBoss
-      ? `👑 בוס עולם ${state.world}! (רמה ${en.level})`
+      ? `👑 בוס ${en.style.name}! (רמה ${en.level})`
       : en.isBurglar
-        ? `🦹 פורץ למחילה! (רמה ${en.level})`
+        ? `🦹 פורץ ${en.style.name}! (רמה ${en.level})`
         : isSmallerOrEqual
-          ? `🟢 רמה ${en.level} (אפשר לאכול!)`
-          : `🔴 רמה ${en.level} (גדול ממך!)`;
+          ? `🟢 ${en.style.name} (רמה ${en.level})`
+          : `🔴 ${en.style.name} (רמה ${en.level} - מסוכן!)`;
     ctx.fillText(tag, en.x, en.y - en.radius - 28);
   }
 
@@ -2466,7 +2618,7 @@ function draw() {
 
   // ציור הנחש של השחקן
   const pStats = getPlayerStats();
-  const pStyle = LEVEL_STYLES[(state.level - 1) % LEVEL_STYLES.length];
+  const pStyle = getSnakeSpeciesStyle(state.level);
 
   if (player.jumpZ > 0) {
     ctx.fillStyle = 'rgba(0,0,0,0.38)';
@@ -2489,7 +2641,8 @@ function draw() {
     pStyle.secondary,
     state.upgrades.hasArmorSuit,
     state.upgrades.hasArmorSuit,
-    pStats.goldCannonCount
+    pStats.goldCannonCount,
+    pStyle
   );
   drawSnakeEyes(
     player.x,
@@ -2499,6 +2652,19 @@ function draw() {
     state.upgrades.hasArtificialTeeth || player.biteAnim > 0,
     state.upgrades.hasLaserSuit
   );
+  ctx.restore();
+
+  // תגית שם המין מתחת לנחש השחקן (שבאמת רואים איזה מין נחש אתה!)
+  ctx.save();
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = pStyle.glow || '#b9f6ca';
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.78)';
+  ctx.lineWidth = 3;
+  const selfTag = `🐍 ${pStyle.name} (רמה ${state.level})`;
+  const selfTagY = player.y + pStats.radius + 18 - player.jumpZ * 1.4;
+  ctx.strokeText(selfTag, player.x, selfTagY);
+  ctx.fillText(selfTag, player.x, selfTagY);
   ctx.restore();
 
   // גל הלם של הצלפת זנב
@@ -2537,6 +2703,41 @@ function draw() {
     ctx.fill();
   }
 
+  // ציור תיבות אוצר (מעבר לנהר) ותיבות משלוח ללא פגיעה (לפני ואחרי הנהר)
+  for (const ch of treasureChests) {
+    if (ch.collected) continue;
+    const isFragile = ch.kind === 'fragile';
+    const bodyFill = isFragile ? '#1e88e5' : '#8d4e16';
+    const lidFill = isFragile ? '#42a5f5' : '#b26a22';
+    const trimColor = isFragile ? '#b3e5fc' : '#ffd600';
+    const claspColor = isFragile ? '#e1f5fe' : '#fff176';
+    const labelColor = isFragile ? '#80d8ff' : '#ffe082';
+    const labelText = isFragile
+      ? (ch.carried ? '📦 למחילה בלי פגיעה!' : `📦 למחילה בלי פגיעה (+${ch.money}₪ +${ch.diamonds}💎)`)
+      : `🧰 אוצר (+${ch.money}₪ +${ch.diamonds}💎)`;
+
+    ctx.save();
+    ctx.translate(ch.x, ch.y);
+    ctx.shadowColor = trimColor;
+    ctx.shadowBlur = ch.carried ? 14 : 9;
+    ctx.fillStyle = bodyFill;
+    ctx.strokeStyle = trimColor;
+    ctx.lineWidth = 2.5;
+    ctx.fillRect(-16, -11, 32, 22);
+    ctx.strokeRect(-16, -11, 32, 22);
+    ctx.fillStyle = lidFill;
+    ctx.fillRect(-17, -14, 34, 8);
+    ctx.strokeRect(-17, -14, 34, 8);
+    ctx.fillStyle = claspColor;
+    ctx.fillRect(-3.5, -8, 7, 7);
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = labelColor;
+    ctx.textAlign = 'center';
+    ctx.fillText(labelText, 0, -21);
+    ctx.restore();
+  }
+
   // ציור ביצת הנחש הנדירה (מעבר לנהר או על גב השחקן)
   if (rareEgg && rareEgg.respawnTimer <= 0) {
     ctx.save();
@@ -2559,7 +2760,7 @@ function draw() {
     ctx.font = 'bold 12px sans-serif';
     ctx.fillStyle = '#ffe082';
     ctx.textAlign = 'center';
-    ctx.fillText(rareEgg.carried ? '🥚 למחילה!' : '🥚 ביצה נדירה (+25₪ +25💎)', 0, -22);
+    ctx.fillText(rareEgg.carried ? '🥚 למחילה! (+70₪ +100💎)' : '🥚 ביצה נדירה (+70₪ +100💎)', 0, -22);
     ctx.restore();
   }
 
@@ -2582,12 +2783,63 @@ function draw() {
   }
 }
 
-function drawSnakeBody(segments, headRadius, shape, primaryColor, secondaryColor, hasArmor = false, isGoldSuit = false, goldCannonCount = 0) {
+function drawSnakeBody(segments, headRadius, shape, primaryColor, secondaryColor, hasArmor = false, isGoldSuit = false, goldCannonCount = 0, speciesStyle = null) {
   const nowSec = Date.now() * 0.008;
+  const pattern = speciesStyle && speciesStyle.pattern ? speciesStyle.pattern : '';
+  const headSeg = segments[0];
+  const neckSeg = segments[1] || headSeg;
+  const headAngle = headSeg && neckSeg ? Math.atan2(headSeg.y - neckSeg.y, headSeg.x - neckSeg.x) : 0;
+
+  // מניפת צוואר רחבה לקוברה מצרית וקוברה מלכותית מאחורי הראש
+  if ((pattern === 'cobra' || pattern === 'king_cobra') && segments.length > 2) {
+    ctx.save();
+    ctx.translate(neckSeg.x, neckSeg.y);
+    ctx.rotate(headAngle);
+    ctx.fillStyle = isGoldSuit ? '#ffb300' : primaryColor;
+    ctx.strokeStyle = isGoldSuit ? '#fff59d' : (pattern === 'king_cobra' ? '#ffd600' : '#3e2723');
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(-headRadius * 0.1, 0, headRadius * 1.15, headRadius * 1.78, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = pattern === 'king_cobra' ? '#ffd600' : '#ffe082';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(-headRadius * 0.25, -headRadius * 0.6, headRadius * 0.32, 0, Math.PI * 2);
+    ctx.arc(-headRadius * 0.25, headRadius * 0.6, headRadius * 0.32, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // רעשן זנב רועד לנחש עכסן בקצה הזנב
+  if (pattern === 'rattle' && segments.length > 2) {
+    const tail = segments[segments.length - 1];
+    const beforeTail = segments[segments.length - 2];
+    const tailAng = Math.atan2(tail.y - beforeTail.y, tail.x - beforeTail.x);
+    const vib = Math.sin(nowSec * 6) * 2.4;
+    ctx.save();
+    ctx.translate(tail.x, tail.y);
+    ctx.rotate(tailAng);
+    for (let b = 0; b < 4; b++) {
+      const bx = (b + 1) * (headRadius * 0.36);
+      const by = (b % 2 === 0 ? 1 : -1) * vib * (0.4 + b * 0.2);
+      const br = Math.max(3, headRadius * (0.34 - b * 0.04));
+      ctx.fillStyle = b % 2 === 0 ? '#d7ccc8' : '#a1887f';
+      ctx.strokeStyle = '#5d4037';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(bx, by, br, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   for (let i = segments.length - 1; i >= 0; i--) {
     const seg = segments[i];
     const t = i / Math.max(1, segments.length - 1);
     const r = headRadius * (1 - t * 0.42);
+    const segAngle = i > 0 ? Math.atan2(segments[i - 1].y - seg.y, segments[i - 1].x - seg.x) : headAngle;
 
     ctx.save();
     ctx.translate(seg.x, seg.y);
@@ -2602,14 +2854,27 @@ function drawSnakeBody(segments, headRadius, shape, primaryColor, secondaryColor
       ctx.lineWidth = 3;
       ctx.shadowColor = 'rgba(255, 214, 0, 0.55)';
       ctx.shadowBlur = 9;
+    } else if (pattern === 'coral') {
+      const coralCols = ['#e53935', '#fdd835', '#1a1a1a'];
+      ctx.fillStyle = coralCols[i % 3];
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = hasArmor ? 3 : 2;
     } else {
       ctx.fillStyle = i % 2 === 0 ? primaryColor : secondaryColor;
-      ctx.strokeStyle = hasArmor ? '#ffd600' : 'rgba(0,0,0,0.4)';
+      ctx.strokeStyle = hasArmor ? '#ffd600' : (pattern === 'black_mamba' ? 'rgba(255,82,82,0.55)' : 'rgba(0,0,0,0.4)');
       ctx.lineWidth = hasArmor ? 3 : 2;
     }
 
     ctx.beginPath();
-    if (shape === 'diamond' && i > 0) {
+    if (i === 0 && (pattern === 'viper' || pattern === 'hermon_viper' || pattern === 'horned' || pattern === 'sawscale')) {
+      // ראש משולש רחב האופייני לנחשי צפע ועכן
+      ctx.rotate(headAngle);
+      ctx.moveTo(r * 1.25, 0);
+      ctx.lineTo(-r * 0.72, -r * 1.15);
+      ctx.lineTo(-r * 0.92, 0);
+      ctx.lineTo(-r * 0.72, r * 1.15);
+      ctx.closePath();
+    } else if (shape === 'diamond' && i > 0) {
       ctx.moveTo(0, -r);
       ctx.lineTo(r, 0);
       ctx.lineTo(0, r);
@@ -2643,6 +2908,99 @@ function drawSnakeBody(segments, headRadius, shape, primaryColor, secondaryColor
 
     ctx.fill();
     ctx.stroke();
+
+    // דוגמת גב ייחודית לפי מין הנחש האמיתי (כך שרואים מיד את ההבדל!)
+    if (!isGoldSuit && i > 0 && pattern) {
+      ctx.shadowBlur = 0;
+      if (pattern === 'montpellier') {
+        ctx.strokeStyle = 'rgba(220, 231, 117, 0.72)';
+        ctx.lineWidth = Math.max(2, r * 0.22);
+        ctx.beginPath();
+        ctx.moveTo(-Math.cos(segAngle) * r * 0.45, -Math.sin(segAngle) * r * 0.45);
+        ctx.lineTo(Math.cos(segAngle) * r * 0.45, Math.sin(segAngle) * r * 0.45);
+        ctx.stroke();
+      } else if (pattern === 'viper' || pattern === 'hermon_viper') {
+        const zig = (i % 2 === 0 ? 1 : -1) * r * 0.25;
+        ctx.fillStyle = pattern === 'hermon_viper' ? '#2c1d18' : '#3e2723';
+        ctx.beginPath();
+        ctx.ellipse(0, zig, r * 0.56, r * 0.34, segAngle + (i % 2 === 0 ? 0.5 : -0.5), 0, Math.PI * 2);
+        ctx.fill();
+        if (pattern === 'hermon_viper' && i % 2 === 0) {
+          ctx.fillStyle = '#eceff1';
+          ctx.beginPath();
+          ctx.arc(0, zig * 0.4, Math.max(1.8, r * 0.18), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (pattern === 'sawscale' && i % 2 === 0) {
+        ctx.strokeStyle = '#fff8e1';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 0.48, -0.8, 0.8);
+        ctx.stroke();
+      } else if ((pattern === 'python' || pattern === 'retic_python') && i % 2 === 0) {
+        ctx.fillStyle = '#ffca28';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r * 0.46, r * 0.28, segAngle, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (pattern === 'taipan' && i % 2 === 1) {
+        ctx.strokeStyle = '#263238';
+        ctx.lineWidth = Math.max(2.2, r * 0.28);
+        ctx.beginPath();
+        ctx.moveTo(-Math.sin(segAngle) * r * 0.72, Math.cos(segAngle) * r * 0.72);
+        ctx.lineTo(Math.sin(segAngle) * r * 0.72, -Math.cos(segAngle) * r * 0.72);
+        ctx.stroke();
+      } else if (pattern === 'black_mamba') {
+        ctx.fillStyle = 'rgba(207, 216, 220, 0.45)';
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 0.34, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (pattern === 'anaconda' && i % 2 === 1) {
+        ctx.fillStyle = '#0f1f11';
+        ctx.strokeStyle = '#ffd600';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r * 0.56, r * 0.36, segAngle, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    // עיטור ראש ייחודי (קרניים לעכן חרטומים / כתר מוזהב לאנקונדה ענקית)
+    if (i === 0) {
+      if (pattern === 'horned') {
+        ctx.save();
+        ctx.rotate(headAngle);
+        ctx.fillStyle = '#fff8e1';
+        ctx.strokeStyle = '#5d4037';
+        ctx.lineWidth = 1.4;
+        for (const side of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(r * 0.15, side * r * 0.42);
+          ctx.lineTo(-r * 0.22, side * r * 1.15);
+          ctx.lineTo(-r * 0.28, side * r * 0.48);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.restore();
+      } else if (pattern === 'anaconda') {
+        ctx.save();
+        ctx.fillStyle = '#ffd600';
+        ctx.strokeStyle = '#ff6f00';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.5, -r * 0.55);
+        ctx.lineTo(-r * 0.35, -r * 1.15);
+        ctx.lineTo(0, -r * 0.72);
+        ctx.lineTo(0, -r * 1.25);
+        ctx.lineTo(r * 0.35, -r * 1.15);
+        ctx.lineTo(r * 0.5, -r * 0.55);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
 
     // נצנוצי זהב נראים לעין על החליפה
     if (isGoldSuit && i % 2 === 0 && Math.sin(nowSec + i * 0.9) > 0.35) {
@@ -3079,6 +3437,13 @@ function drawMinimap() {
     mctx.fill();
   }
 
+  // תיבות אוצר ותיבות משלוח על המיני-מפה
+  for (const ch of treasureChests) {
+    if (ch.collected || ch.carried) continue;
+    mctx.fillStyle = ch.kind === 'fragile' ? '#40c4ff' : '#ffca28';
+    mctx.fillRect(ch.x * sx - 2, ch.y * sy - 2, 4, 4);
+  }
+
   // נחשים אויבים ובוס
   for (const en of enemies) {
     if (en.isBoss) mctx.fillStyle = '#ffd600';
@@ -3147,7 +3512,7 @@ function renderRecords() {
 }
 
 function updateHUD() {
-  const style = LEVEL_STYLES[(state.level - 1) % LEVEL_STYLES.length];
+  const style = getSnakeSpeciesStyle(state.level);
   const diffCfg = getDifficultyConfig();
   const regularLeft = enemies.filter((e) => !e.isBurglar).length;
 
@@ -3440,7 +3805,7 @@ document.getElementById('closeRecordsBtn').addEventListener('click', () => {
 });
 
 document.getElementById('difficultyBtn').addEventListener('click', () => {
-  const order = ['normal', 'hard', 'insane'];
+  const order = ['easy', 'normal', 'hard', 'insane'];
   const idx = order.indexOf(state.difficulty);
   state.difficulty = order[(idx + 1) % order.length];
   saveState();
@@ -3558,7 +3923,7 @@ const duel = {
 };
 
 function getMyDuelProfile() {
-  const style = LEVEL_STYLES[(state.level - 1) % LEVEL_STYLES.length];
+  const style = getSnakeSpeciesStyle(state.level);
   const stats = getPlayerStats();
   return {
     shape: style.shape,

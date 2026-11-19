@@ -150,9 +150,6 @@ function initWorld(worldNum) {
   if (state.world > state.maxWorldReached) {
     state.maxWorldReached = state.world;
   }
-  if (state.world >= 50) {
-    state.freeRoamUnlocked = true;
-  }
   saveState();
 
   const stats = getPlayerStats();
@@ -172,28 +169,40 @@ function initWorld(worldNum) {
   ];
   bridges = [];
 
-  // יצירת נחשים יריבים בעולם
+  // יצירת נחשים יריבים בעולם: 20 בעולם 1, ו-+5 בכל עליית עולם
   enemies = [];
-  const totalSnakes = 6 + Math.min(Math.floor(state.world / 2), 10);
+  const totalSnakes = 20 + (state.world - 1) * 5;
 
   for (let i = 0; i < totalSnakes; i++) {
     let enemyLevel;
-    if (i < Math.ceil(totalSnakes * 0.65)) {
+    if (i < Math.ceil(totalSnakes * 0.50)) {
       enemyLevel = Math.max(1, state.level - 1 + (i % 2));
-    } else {
+    } else if (i < Math.ceil(totalSnakes * 0.85)) {
       enemyLevel = state.level + 1;
+    } else {
+      enemyLevel = state.level + 2;
     }
 
     const onRightSide = i >= Math.ceil(totalSnakes * 0.5);
-    const minX = onRightSide ? RIVER.x + RIVER.width + 120 : 620;
+    const minX = onRightSide ? RIVER.x + RIVER.width + 120 : 120;
     const maxX = onRightSide ? WORLD_WIDTH - 150 : RIVER.x - 100;
 
-    spawnEnemySnake(
-      minX + Math.random() * (maxX - minX),
-      200 + Math.random() * (WORLD_HEIGHT - 400),
-      enemyLevel,
-      false
-    );
+    let spawnX = minX + Math.random() * (maxX - minX);
+    let spawnY = 180 + Math.random() * (WORLD_HEIGHT - 360);
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const candidateX = minX + Math.random() * (maxX - minX);
+      const candidateY = 180 + Math.random() * (WORLD_HEIGHT - 360);
+      if (Math.hypot(candidateX - HOME_BASE.x, candidateY - HOME_BASE.y) > HOME_BASE.radius + 120) {
+        spawnX = candidateX;
+        spawnY = candidateY;
+        break;
+      }
+    }
+    if (Math.hypot(spawnX - HOME_BASE.x, spawnY - HOME_BASE.y) <= HOME_BASE.radius + 120) {
+      spawnX = HOME_BASE.x + HOME_BASE.radius + 150;
+    }
+
+    spawnEnemySnake(spawnX, spawnY, enemyLevel, false);
   }
 
   rebuildHelpers();
@@ -204,8 +213,8 @@ function initWorld(worldNum) {
 function spawnEnemySnake(x, y, level, isBurglar = false) {
   const style = LEVEL_STYLES[(level - 1) % LEVEL_STYLES.length];
   const radius = 13 + Math.min(level * 2.1, 25);
-  const maxHp = 35 + level * 22;
-  const segCount = 6 + Math.min(level * 2, 20);
+  const maxHp = 45 + level * 26 + (state.world - 1) * 10;
+  const segCount = 6 + Math.min(level * 2, 16);
   const segs = [];
   for (let i = 0; i < segCount; i++) {
     segs.push({ x: x - i * 10, y });
@@ -214,7 +223,7 @@ function spawnEnemySnake(x, y, level, isBurglar = false) {
     x,
     y,
     angle: Math.random() * Math.PI * 2,
-    speed: isBurglar ? 2.4 : 1.65 + Math.min(level * 0.12, 1.4),
+    speed: isBurglar ? (2.6 + Math.min(state.world * 0.05, 1.0)) : (1.9 + Math.min(level * 0.14 + (state.world - 1) * 0.06, 2.0)),
     level,
     hp: maxHp,
     maxHp,
@@ -222,7 +231,8 @@ function spawnEnemySnake(x, y, level, isBurglar = false) {
     style,
     isBurglar,
     segments: segs,
-    turnTimer: 0
+    turnTimer: 0,
+    biteCooldown: 0
   });
 }
 
@@ -602,7 +612,7 @@ function eatEnemy(enemyIndex) {
   state.xp += 1;
   if (state.xp >= state.xpToNext) {
     state.xp = 0;
-    state.xpToNext = Math.min(2 + Math.floor(state.level / 2), 6);
+    state.xpToNext = Math.min(3 + Math.floor(state.level / 2), 8);
     state.level += 1;
 
     const newStyle = LEVEL_STYLES[(state.level - 1) % LEVEL_STYLES.length];
@@ -629,10 +639,9 @@ function eatEnemy(enemyIndex) {
         initWorld(state.world + 1);
       }, 1500);
     } else {
-      state.freeRoamUnlocked = true;
       saveState();
       updateHUD();
-      showToast(`👑 הגעת לעולם 50 וניצחת! כעת פתוח לך מסע חופשי בין כל 50 העולמות!`);
+      showToast(`👑 כל הכבוד! ניצחת את כל 50 העולמות!`);
     }
   }
 }
@@ -841,8 +850,8 @@ function updateProjectiles() {
         if (en.level <= state.level) {
           damageEnemy(j, p.damage, p.isLaser ? '⚡ לייזר!' : '🧪 ארס!');
         } else {
-          en.hp -= p.damage * 0.45;
-          addFloatingText(en.x, en.y - 20, `-${Math.round(p.damage * 0.45)}`, '#ffab91');
+          en.hp -= p.damage * 0.3;
+          addFloatingText(en.x, en.y - 20, `-${Math.round(p.damage * 0.3)}`, '#ffab91');
           if (en.hp <= 0) eatEnemy(j);
         }
         p.life = 0;
@@ -907,8 +916,13 @@ function updateHelpers() {
 }
 
 function updateEnemies(playerStats) {
+  const playerOutsideHome = Math.hypot(player.x - HOME_BASE.x, player.y - HOME_BASE.y) > HOME_BASE.radius + 10;
+
   for (let i = enemies.length - 1; i >= 0; i--) {
     const en = enemies[i];
+    if (en.biteCooldown > 0) en.biteCooldown--;
+
+    let moveSpeed = en.speed;
 
     if (en.isBurglar) {
       en.angle = Math.atan2(HOME_BASE.y - en.y, HOME_BASE.x - en.x);
@@ -924,15 +938,36 @@ function updateEnemies(playerStats) {
         continue;
       }
     } else {
-      en.turnTimer--;
-      if (en.turnTimer <= 0) {
-        en.turnTimer = 40 + Math.random() * 60;
-        en.angle += (Math.random() - 0.5) * 1.4;
+      const distToPlayer = Math.hypot(player.x - en.x, player.y - en.y);
+      const chaseRange = 340 + Math.min(state.world * 8, 160);
+
+      if (en.level > state.level && playerOutsideHome && distToPlayer < chaseRange) {
+        // נחשים גדולים רודפים אחרי השחקן כשהוא יוצא מהבית
+        const targetAngle = Math.atan2(player.y - en.y, player.x - en.x);
+        let diff = targetAngle - en.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        en.angle += diff * 0.08;
+        moveSpeed = en.speed * 1.15;
+      } else if (en.level < state.level && distToPlayer < 220) {
+        // נחשים קטנים מנסים לברוח כשהשחקן מתקרב
+        const fleeAngle = Math.atan2(en.y - player.y, en.x - player.x);
+        let diff = fleeAngle - en.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        en.angle += diff * 0.1;
+        moveSpeed = en.speed * 1.08;
+      } else {
+        en.turnTimer--;
+        if (en.turnTimer <= 0) {
+          en.turnTimer = 40 + Math.random() * 60;
+          en.angle += (Math.random() - 0.5) * 1.4;
+        }
       }
     }
 
-    let nx = en.x + Math.cos(en.angle) * en.speed;
-    let ny = en.y + Math.sin(en.angle) * en.speed;
+    let nx = en.x + Math.cos(en.angle) * moveSpeed;
+    let ny = en.y + Math.sin(en.angle) * moveSpeed;
 
     if (nx < 80 || nx > WORLD_WIDTH - 80) en.angle = Math.PI - en.angle;
     if (ny < 80 || ny > WORLD_HEIGHT - 80) en.angle = -en.angle;
@@ -943,8 +978,8 @@ function updateEnemies(playerStats) {
       en.angle = Math.PI - en.angle;
     }
 
-    en.x += Math.cos(en.angle) * en.speed;
-    en.y += Math.sin(en.angle) * en.speed;
+    en.x += Math.cos(en.angle) * moveSpeed;
+    en.y += Math.sin(en.angle) * moveSpeed;
     updateSegments(en.segments, en.x, en.y, en.radius * 0.7);
 
     if (player.jumpZ < 8) {
@@ -960,6 +995,18 @@ function updateEnemies(playerStats) {
             player.biteCooldown = 14;
             player.biteAnim = 10;
             damageEnemy(i, playerStats.biteDamage, '🦷 נשיכה!');
+          }
+          // נחשים באותה רמה נושכים בחזרה ומורידים חיים בקרב
+          if (en.hp > 0 && en.level === state.level && en.biteCooldown <= 0 && player.invulnerableTimer <= 0) {
+            en.biteCooldown = 36;
+            const retDmg = 6 + en.level * 2;
+            player.hp -= retDmg;
+            addFloatingText(player.x, player.y - 32, `-${retDmg} ❤️`, '#ff5252');
+            updateHUD();
+            if (player.hp <= 0) {
+              sendPlayerHome('נגמרו לך החיים בקרב');
+              break;
+            }
           }
         }
       }
@@ -1296,11 +1343,6 @@ function updateHUD() {
   document.getElementById('hpBarFill').style.width = `${hpPct}%`;
   document.getElementById('hpText').textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
 
-  const worldSelectBtn = document.getElementById('worldSelectBtn');
-  if (state.freeRoamUnlocked || state.maxWorldReached >= 2) {
-    worldSelectBtn.classList.remove('hidden');
-  }
-
   document.getElementById('dayNightBtn').textContent = isNightTime() ? '🌙' : '☀️';
 }
 
@@ -1465,27 +1507,6 @@ document.getElementById('shopBtn').addEventListener('click', () => {
 
 document.getElementById('closeShopBtn').addEventListener('click', () => {
   document.getElementById('shopModal').classList.add('hidden');
-});
-
-document.getElementById('worldSelectBtn').addEventListener('click', () => {
-  const grid = document.getElementById('worldsGrid');
-  grid.innerHTML = '';
-  const maxUnlocked = state.freeRoamUnlocked ? 50 : Math.max(state.maxWorldReached, 50);
-  for (let w = 1; w <= maxUnlocked; w++) {
-    const btn = document.createElement('button');
-    btn.className = 'world-tile' + (w === state.world ? ' active' : '');
-    btn.textContent = `עולם ${w}`;
-    btn.addEventListener('click', () => {
-      document.getElementById('worldsModal').classList.add('hidden');
-      initWorld(w);
-    });
-    grid.appendChild(btn);
-  }
-  document.getElementById('worldsModal').classList.remove('hidden');
-});
-
-document.getElementById('closeWorldsBtn').addEventListener('click', () => {
-  document.getElementById('worldsModal').classList.add('hidden');
 });
 
 document.getElementById('dayNightBtn').addEventListener('click', () => {

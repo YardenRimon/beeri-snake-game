@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="נחשי בארי" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=2" />
 </head>
 <body>
   <!-- סרגל עליון (HUD) -->
@@ -24,8 +24,8 @@
       <div class="stat-pill snakes-pill" title="נחשים שנותרו בעולם זה">
         🐍 נותרו: <span id="snakesLeft">0</span>
       </div>
-      <div class="stat-pill level-pill" title="רמת הנחש והצורה שלו">
-        ⭐ רמה <span id="playerLevel">1</span> (<span id="shapeName">עיגולים</span>)
+      <div class="stat-pill level-pill" title="רמת הנחש והסוג שלו">
+        ⭐ רמה <span id="playerLevel">1</span> (<span id="shapeName">תלום-קשקשים</span>)
       </div>
     </div>
 
@@ -51,7 +51,7 @@
       <button id="recordsBtn" class="action-btn records-btn" title="טבלת השיאים האישיים שלך">🏆 שיאים</button>
       <button id="duelBtn" class="action-btn duel-btn" title="קרב חי אחד נגד השני בסריקת ברקוד QR">📱 קרב QR</button>
       <button id="installBtn" class="action-btn install-btn" title="הורד והתקן את המשחק כאפליקציה בדף הבית">📲 התקן</button>
-      <button id="difficultyBtn" class="action-btn diff-btn diff-hard" title="שינוי רמת קושי (רגיל / קשה / מטורף)">🔥 קשה</button>
+      <button id="difficultyBtn" class="action-btn diff-btn diff-hard" title="שינוי רמת קושי (קלילה / רגיל / קשה / מטורף)">🔥 קשה</button>
       <button id="dayNightBtn" class="icon-btn" title="מחזור יום/לילה (24 שעות - לחץ להחלפה)">☀️</button>
       <button id="soundBtn" class="icon-btn" title="הפעלת / השתקת צלילים ואפקטי קול">🔊</button>
       <button id="resetBtn" class="icon-btn" title="איפוס שמירה והתחלה מחדש">🔄</button>
@@ -77,7 +77,7 @@
     <!-- חלונית רמה ושיא בצד המסך (עליית רמה כל 3 עולמות) -->
     <div id="levelSideCard" class="level-side-card" title="התקדמות לרמה הבאה ושיא אישי">
       <div class="level-side-title">⭐ רמה <span id="sideLevelNum">1</span></div>
-      <div class="level-side-shape" id="sideShapeName">עיגולים ירוקים</div>
+      <div class="level-side-shape" id="sideShapeName">תלום-קשקשים</div>
       <div class="level-side-bar-bg">
         <div id="levelXpFill" class="level-side-bar-fill"></div>
       </div>
@@ -268,6 +268,6 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
-  <script src="game.js"></script>
+  <script src="game.js?v=2"></script>
 </body>
 </html>

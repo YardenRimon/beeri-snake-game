@@ -2,7 +2,9 @@
 // עולם הנחשים של בארי - מנוע המשחק (מותאם למובייל ולמחשב)
 // ============================================================================
 
-const SAVE_KEY = 'beeri_snake_game_save_v1';
+const SAVE_KEY = 'beeri_snake_game_save_v2';
+const LEGACY_SAVE_KEY = 'beeri_snake_game_save_v1';
+const MAX_WORLDS = 150;
 
 // הגדרות צורות וצבעים לפי רמת הנחש
 const LEVEL_STYLES = [
@@ -12,6 +14,51 @@ const LEVEL_STYLES = [
   { name: 'כוכבים סגולים', shape: 'star', primary: '#ab47bc', secondary: '#7b1fa2', glow: '#e1bee7' },
   { name: 'קשקשי דרקון טורקיז', shape: 'triangle', primary: '#00bfa5', secondary: '#00897b', glow: '#a7ffeb' },
   { name: 'טבעות זהב מלכותי', shape: 'ring', primary: '#ffd600', secondary: '#ffab00', glow: '#ffff8d' }
+];
+
+// 10 סוגי סביבות בסיס (מתוך 150 סביבות ייחודיות – עיצוב, צבעים וקישוטי שטח שונים לכל עולם)
+const WORLD_BIOMES = [
+  { name: 'יער ירוק', bgHue: 125, bgSat: 34, bgLight: 17, riverEdge: '#0277bd', riverMid: '#29b6f6', decor: 'bush', decorColors: ['#2e7d32', '#66bb6a', '#fdd835'] },
+  { name: 'מדבר זהוב', bgHue: 38, bgSat: 45, bgLight: 22, riverEdge: '#00838f', riverMid: '#4dd0e1', decor: 'cactus', decorColors: ['#388e3c', '#d4a373', '#e9c46a'] },
+  { name: 'ארץ קרח', bgHue: 202, bgSat: 42, bgLight: 24, riverEdge: '#4fc3f7', riverMid: '#b3e5fc', decor: 'crystal', decorColors: ['#e1f5fe', '#81d4fa', '#ffffff'] },
+  { name: 'ארץ לבה', bgHue: 8, bgSat: 46, bgLight: 13, riverEdge: '#bf360c', riverMid: '#ff6d00', decor: 'lavaRock', decorColors: ['#4e342e', '#ff3d00', '#ffab00'] },
+  { name: 'חוף טרופי', bgHue: 48, bgSat: 50, bgLight: 25, riverEdge: '#00acc1', riverMid: '#80deea', decor: 'palm', decorColors: ['#2e7d32', '#ffca28', '#ff8a65'] },
+  { name: 'יער קריסטלים', bgHue: 272, bgSat: 38, bgLight: 16, riverEdge: '#6a1b9a', riverMid: '#e040fb', decor: 'crystal', decorColors: ['#ce93d8', '#80deea', '#ea80fc'] },
+  { name: 'ביצה אפלה', bgHue: 152, bgSat: 30, bgLight: 12, riverEdge: '#1b5e20', riverMid: '#69f0ae', decor: 'lily', decorColors: ['#33691e', '#9ccc65', '#f48fb1'] },
+  { name: 'קניון אדום', bgHue: 16, bgSat: 48, bgLight: 19, riverEdge: '#0288d1', riverMid: '#4fc3f7', decor: 'rock', decorColors: ['#8d6e63', '#d84315', '#ffab91'] },
+  { name: 'עולם סייבר', bgHue: 222, bgSat: 52, bgLight: 11, riverEdge: '#00b8d4', riverMid: '#18ffff', decor: 'cyber', decorColors: ['#00e5ff', '#ff4081', '#7c4dff'] },
+  { name: 'חלל וגלקסיה', bgHue: 252, bgSat: 44, bgLight: 9, riverEdge: '#311b92', riverMid: '#7c4dff', decor: 'star', decorColors: ['#fff59d', '#b388ff', '#80d8ff'] }
+];
+
+function getWorldTheme(worldNum) {
+  const base = WORLD_BIOMES[(worldNum - 1) % WORLD_BIOMES.length];
+  const cycle = Math.floor((worldNum - 1) / WORLD_BIOMES.length);
+  const hueOffset = (cycle * 13 + worldNum * 5) % 30 - 15;
+  const lightOffset = ((worldNum * 7) % 7) - 3;
+  return {
+    ...base,
+    name: `${base.name} #${cycle + 1}`,
+    bgHue: (base.bgHue + hueOffset + 360) % 360,
+    bgLight: Math.max(7, Math.min(28, base.bgLight + lightOffset)),
+    gridStep: 70 + ((worldNum * 11) % 30)
+  };
+}
+
+// רמות קושי במשחק (ברירת מחדל: קשה)
+const DIFFICULTIES = {
+  normal: { label: '⚔️ רגיל', hpMult: 1.0, speedMult: 1.0, dmgMult: 1.0, enemySpit: false, spitCooldown: 180, cssClass: 'diff-normal' },
+  hard: { label: '🔥 קשה', hpMult: 1.55, speedMult: 1.2, dmgMult: 1.5, enemySpit: true, spitCooldown: 155, cssClass: 'diff-hard' },
+  insane: { label: '💀 מטורף', hpMult: 2.2, speedMult: 1.35, dmgMult: 2.2, enemySpit: true, spitCooldown: 110, cssClass: 'diff-insane' }
+};
+
+// משימות צדדיות (בנוסף לציד נחשים – חלקן מוגבלות בזמן!)
+const QUEST_TEMPLATES = [
+  { type: 'bridges', title: 'הפל עץ ליצירת גשר מעל הנהר 🪵', target: 1, rewardMoney: 14, rewardDiamonds: 8, timed: true, timeLimitSec: 75 },
+  { type: 'cross_river', title: 'חצה את הנהר לצד השני 🌊', target: 1, rewardMoney: 15, rewardDiamonds: 10, timed: true, timeLimitSec: 90 },
+  { type: 'jumps', title: 'קפוץ 8 פעמים באוויר ⬆️', target: 8, rewardMoney: 10, rewardDiamonds: 6, timed: true, timeLimitSec: 45 },
+  { type: 'venom_shots', title: 'ירה 10 פעמים ארס או לייזר 🎯', target: 10, rewardMoney: 12, rewardDiamonds: 8, timed: true, timeLimitSec: 55 },
+  { type: 'shop_buy', title: 'קנה שדרוג או נחש עוזר בחנות 🛒', target: 1, rewardMoney: 14, rewardDiamonds: 10, timed: false, timeLimitSec: 0 },
+  { type: 'home_heal', title: 'התרפא בתוך הבית שלך עד חיים מלאים 🏠', target: 1, rewardMoney: 10, rewardDiamonds: 6, timed: false, timeLimitSec: 0 }
 ];
 
 // מצב התחלתי של השחקן (לפי האפיון: 10 שקלים ו-15 יהלומים)
@@ -24,7 +71,12 @@ function getDefaultState() {
     xpToNext: 2,
     world: 1,
     maxWorldReached: 1,
-    freeRoamUnlocked: false,
+    difficulty: 'hard',
+    quests: {
+      completed: 0,
+      nextIndex: 0,
+      active: []
+    },
     upgrades: {
       biteLevel: 1,
       speedLevel: 1,
@@ -36,27 +88,61 @@ function getDefaultState() {
       laserLevel: 1,
       collectorSnakes: 0,
       fighterSnakes: 0,
-      guardSnakes: 0
+      guardSnakes: 0,
+      collectorLevel: 1,
+      fighterLevel: 1,
+      guardLevel: 1
     }
   };
+}
+
+function getDifficultyConfig() {
+  return DIFFICULTIES[state.difficulty] || DIFFICULTIES.hard;
 }
 
 let state = loadState();
 
 function loadState() {
   try {
+    // איפוס שמירה ישנה כדי שכל שחקן יתחיל מחדש מעולם 1 עם הנתונים ההתחלתיים
+    localStorage.removeItem(LEGACY_SAVE_KEY);
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return getDefaultState();
     const parsed = JSON.parse(raw);
     return {
       ...getDefaultState(),
       ...parsed,
+      quests: { ...getDefaultState().quests, ...(parsed.quests || {}) },
       upgrades: { ...getDefaultState().upgrades, ...(parsed.upgrades || {}) }
     };
   } catch (e) {
     return getDefaultState();
   }
 }
+
+function ensureQuests() {
+  if (!state.quests) state.quests = getDefaultState().quests;
+  if (!Array.isArray(state.quests.active)) state.quests.active = [];
+
+  while (state.quests.active.length < 3) {
+    const idx = (state.quests.nextIndex || 0) % QUEST_TEMPLATES.length;
+    state.quests.nextIndex = (state.quests.nextIndex || 0) + 1;
+    const tmpl = QUEST_TEMPLATES[idx];
+    const scale = 1 + Math.floor((state.quests.completed || 0) / 6);
+    state.quests.active.push({
+      id: `q_${Date.now()}_${Math.random()}`,
+      type: tmpl.type,
+      title: tmpl.title,
+      target: tmpl.target,
+      progress: 0,
+      rewardMoney: tmpl.rewardMoney + (scale - 1) * 4,
+      rewardDiamonds: tmpl.rewardDiamonds + (scale - 1) * 3,
+      timed: tmpl.timed,
+      timeRemaining: tmpl.timed ? tmpl.timeLimitSec : 0
+    });
+  }
+}
+ensureQuests();
 
 function saveState() {
   try {
@@ -92,8 +178,14 @@ let bridges = [];
 let enemies = [];
 let helperEntities = [];
 let projectiles = [];
+let enemyProjectiles = [];
 let particles = [];
 let floatingTexts = [];
+let worldDecorations = [];
+let currentWorldTheme = getWorldTheme(state.world);
+let bossSpawnedThisWorld = false;
+let crossedRiverThisWorld = false;
+let questTickCounter = 0;
 
 // מחזור יום ולילה (24 שעות לפי השעון האמיתי, עם אפשרות החלפה ידנית)
 let manualNightOverride = null;
@@ -125,7 +217,7 @@ const player = {
 function getPlayerStats() {
   const u = state.upgrades;
   const maxHp = 100 + (u.hpLevel - 1) * 35 + (u.hasArmorSuit ? 60 : 0);
-  const baseSpeed = 4.0 + (u.speedLevel - 1) * 0.45;
+  const baseSpeed = Math.min(9.8, 4.0 + (u.speedLevel - 1) * 0.45);
   const biteDamage = 25 + (u.biteLevel - 1) * 15 + (u.hasArtificialTeeth ? 35 : 0);
   const venomDamage = 22 + (u.venomLevel - 1) * 15;
   const laserDamage = 32 + (u.laserLevel - 1) * 18;
@@ -143,13 +235,42 @@ function initPlayerSegments() {
 }
 
 // ============================================================================
-// יצירת עולם (עולמות 1 עד 50)
+// יצירת עולם (עולמות 1 עד 150 – סביבה ייחודית לכל עולם)
 // ============================================================================
+function generateWorldDecorations(worldNum, theme) {
+  const list = [];
+  let seed = (worldNum * 2654435761) >>> 0;
+  function rand() {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  }
+
+  for (let i = 0; i < 48; i++) {
+    const x = 90 + rand() * (WORLD_WIDTH - 180);
+    const y = 90 + rand() * (WORLD_HEIGHT - 180);
+    if (x > RIVER.x - 75 && x < RIVER.x + RIVER.width + 75) continue;
+    if (Math.hypot(x - HOME_BASE.x, y - HOME_BASE.y) < HOME_BASE.radius + 50) continue;
+    list.push({
+      x,
+      y,
+      size: 10 + rand() * 18,
+      color: theme.decorColors[Math.floor(rand() * theme.decorColors.length)],
+      rot: rand() * Math.PI * 2
+    });
+  }
+  return list;
+}
+
 function initWorld(worldNum) {
-  state.world = Math.max(1, Math.min(50, worldNum));
+  state.world = Math.max(1, Math.min(MAX_WORLDS, worldNum));
   if (state.world > state.maxWorldReached) {
     state.maxWorldReached = state.world;
   }
+  currentWorldTheme = getWorldTheme(state.world);
+  worldDecorations = generateWorldDecorations(state.world, currentWorldTheme);
+  bossSpawnedThisWorld = false;
+  crossedRiverThisWorld = false;
+  ensureQuests();
   saveState();
 
   const stats = getPlayerStats();
@@ -161,7 +282,7 @@ function initWorld(worldNum) {
   player.jumpZ = 0;
   initPlayerSegments();
 
-  // יצירת עצים על שתי גדות הנהר (קרובים ונוחים להפלה עם נשיכה או ירי ארס)
+  // יצירת עצים על גדת הנהר להפלה ויצירת גשר
   trees = [
     { x: RIVER.x - 32, y: 420, hp: 20, maxHp: 20, fallen: false },
     { x: RIVER.x - 32, y: 900, hp: 20, maxHp: 20, fallen: false },
@@ -171,7 +292,9 @@ function initWorld(worldNum) {
 
   // יצירת נחשים יריבים בעולם: 20 בעולם 1, ו-+5 בכל עליית עולם
   enemies = [];
+  enemyProjectiles = [];
   const totalSnakes = 20 + (state.world - 1) * 5;
+  const diffCfg = getDifficultyConfig();
 
   for (let i = 0; i < totalSnakes; i++) {
     let enemyLevel;
@@ -202,37 +325,56 @@ function initWorld(worldNum) {
       spawnX = HOME_BASE.x + HOME_BASE.radius + 150;
     }
 
-    spawnEnemySnake(spawnX, spawnY, enemyLevel, false);
+    spawnEnemySnake(spawnX, spawnY, enemyLevel, false, false);
   }
 
   rebuildHelpers();
   updateHUD();
-  showToast(`🌍 עולם ${state.world}! אכול את כל ${enemies.length} הנחשים כדי לעבור לעולם הבא`);
+  showToast(`🌍 עולם ${state.world} – ${currentWorldTheme.name} (${diffCfg.label})! הבס ${enemies.length} נחשים כדי להזמין את הבוס!`);
 }
 
-function spawnEnemySnake(x, y, level, isBurglar = false) {
+function spawnWorldBoss() {
+  const diffCfg = getDifficultyConfig();
+  const bossLevel = Math.max(state.level + 2, state.world + 2);
+  const bossX = player.x < RIVER.x ? (RIVER.x + RIVER.width + 320) : 680;
+  const bossY = WORLD_HEIGHT / 2 + (Math.random() - 0.5) * 300;
+  spawnEnemySnake(bossX, bossY, bossLevel, false, true);
+  showToast(`👑 בוס סוף עולם ${state.world} הגיע! הנחש הכי חזק בעולם – הבס אותו כדי להתקדם (${diffCfg.label})!`);
+}
+
+function spawnEnemySnake(x, y, level, isBurglar = false, isBoss = false) {
+  const diffCfg = getDifficultyConfig();
   const style = LEVEL_STYLES[(level - 1) % LEVEL_STYLES.length];
-  const radius = 13 + Math.min(level * 2.1, 25);
-  const maxHp = 45 + level * 26 + (state.world - 1) * 10;
-  const segCount = 6 + Math.min(level * 2, 16);
+  const radius = 13 + Math.min(level * 2.1, 25) + (isBoss ? 10 : 0);
+  const maxHp = isBoss
+    ? Math.round((180 + level * 45 + (state.world - 1) * 40) * diffCfg.hpMult)
+    : Math.round((45 + level * 26 + (state.world - 1) * 10) * diffCfg.hpMult);
+  const segCount = 6 + Math.min(level * 2, 16) + (isBoss ? 6 : 0);
   const segs = [];
   for (let i = 0; i < segCount; i++) {
     segs.push({ x: x - i * 10, y });
   }
+  const baseSpeed = isBurglar
+    ? (2.6 + Math.min(state.world * 0.05, 1.0))
+    : isBoss
+      ? (2.25 + Math.min(state.world * 0.08, 1.4))
+      : (1.9 + Math.min(level * 0.14 + (state.world - 1) * 0.06, 2.0));
   enemies.push({
     x,
     y,
     angle: Math.random() * Math.PI * 2,
-    speed: isBurglar ? (2.6 + Math.min(state.world * 0.05, 1.0)) : (1.9 + Math.min(level * 0.14 + (state.world - 1) * 0.06, 2.0)),
+    speed: baseSpeed * diffCfg.speedMult,
     level,
     hp: maxHp,
     maxHp,
     radius,
     style,
     isBurglar,
+    isBoss,
     segments: segs,
     turnTimer: 0,
-    biteCooldown: 0
+    biteCooldown: 0,
+    spitCooldown: 70 + Math.floor(Math.random() * 70)
   });
 }
 
@@ -245,6 +387,7 @@ function knockDownTree(tree) {
   spawnParticles(tree.x, tree.y, '#8d6e63', 18);
   addFloatingText(tree.x, tree.y - 30, '🪵 גשר נוצר!', '#ffe082');
   showToast('🪵 העץ נפל על הנהר ויצר גשר למעבר בטוח!');
+  recordQuestProgress('bridges', 1);
 }
 
 // ============================================================================
@@ -266,6 +409,13 @@ function rebuildHelpers() {
 }
 
 function createHelper(type, index) {
+  const u = state.upgrades;
+  const levelMap = {
+    collector: u.collectorLevel || 1,
+    fighter: u.fighterLevel || 1,
+    guard: u.guardLevel || 1
+  };
+  const hLevel = levelMap[type] || 1;
   const colors = {
     collector: '#ffd54f',
     fighter: '#ff5252',
@@ -278,18 +428,20 @@ function createHelper(type, index) {
   };
   const startX = HOME_BASE.x + Math.cos(index * 1.7) * 90;
   const startY = HOME_BASE.y + Math.sin(index * 1.7) * 90;
+  const segCount = 7 + Math.min((hLevel - 1) * 2, 10);
   const segs = [];
-  for (let s = 0; s < 7; s++) segs.push({ x: startX, y: startY });
+  for (let s = 0; s < segCount; s++) segs.push({ x: startX, y: startY });
 
   return {
     type,
-    label: labels[type],
+    level: hLevel,
+    label: `${labels[type]} ★${hLevel}`,
     color: colors[type],
     x: startX,
     y: startY,
     angle: index,
-    speed: 3.3,
-    radius: 12,
+    speed: 3.3 + (hLevel - 1) * 0.45,
+    radius: 12 + Math.min((hLevel - 1) * 2, 10),
     attackTimer: 0,
     segments: segs
   };
@@ -316,6 +468,8 @@ const camera = {
   zoom: 1,
   panX: 0,
   panY: 0,
+  lookAheadX: 0,
+  lookAheadY: 0,
   panPointerId: null,
   panLastX: 0,
   panLastY: 0
@@ -323,9 +477,12 @@ const camera = {
 
 function getCameraZoom() {
   const minDim = Math.min(window.innerWidth, window.innerHeight);
-  if (minDim < 500) return 0.62;
-  if (minDim < 820) return 0.76;
-  return 1.0;
+  let baseZoom = 1.0;
+  if (minDim < 500) baseZoom = 0.62;
+  else if (minDim < 820) baseZoom = 0.76;
+  const speed = getPlayerStats().baseSpeed;
+  const speedFactor = 1 + Math.min((speed - 4.0) * 0.035, 0.20);
+  return baseZoom / speedFactor;
 }
 
 window.addEventListener('keydown', (e) => {
@@ -478,6 +635,7 @@ function triggerJump() {
     player.jumpVz = 9.5;
     spawnParticles(player.x, player.y, '#ffffff', 10);
     addFloatingText(player.x, player.y - 25, '⬆️ קפיצה!', '#81d4fa');
+    recordQuestProgress('jumps', 1);
   }
 }
 
@@ -498,12 +656,12 @@ function triggerBite() {
     }
   }
 
-  // בדיקת נשיכה של נחשים יריבים
+  // בדיקת נשיכה של נחשים יריבים (וגם של הבוס בסוף העולם)
   for (let i = enemies.length - 1; i >= 0; i--) {
     const en = enemies[i];
     const dist = Math.hypot(en.x - player.x, en.y - player.y);
     if (dist <= biteRange + en.radius) {
-      if (en.level <= state.level) {
+      if (en.level <= state.level || en.isBoss) {
         damageEnemy(i, stats.biteDamage, '🦷 נשיכה!');
         hitAny = true;
       } else {
@@ -522,6 +680,7 @@ function triggerShoot() {
   const stats = getPlayerStats();
   const isLaser = state.upgrades.hasLaserSuit;
   player.shootCooldown = isLaser ? 11 : 18;
+  recordQuestProgress('venom_shots', 1);
 
   // במחשב עם עכבר פעיל יורים לכיוון העכבר; במובייל יורים לכיוון שבו הנחש פונה (עם נעילה חכמה על עץ או אויב קרוב ממול)
   let targetAngle = player.angle;
@@ -567,7 +726,7 @@ function triggerShoot() {
 // ============================================================================
 // לוגיקת קרב, אכילה, עליית רמות ושלל
 // ============================================================================
-function damageEnemy(enemyIndex, dmg, label = '') {
+function damageEnemy(enemyIndex, dmg, label = '', options = {}) {
   const en = enemies[enemyIndex];
   if (!en) return;
   en.hp -= dmg;
@@ -575,11 +734,11 @@ function damageEnemy(enemyIndex, dmg, label = '') {
   addFloatingText(en.x, en.y - 20, `${label} -${Math.round(dmg)}`, '#ff8a80');
 
   if (en.hp <= 0) {
-    eatEnemy(enemyIndex);
+    eatEnemy(enemyIndex, options);
   }
 }
 
-function eatEnemy(enemyIndex) {
+function eatEnemy(enemyIndex, options = {}) {
   const en = enemies[enemyIndex];
   if (!en) return;
   enemies.splice(enemyIndex, 1);
@@ -598,6 +757,16 @@ function eatEnemy(enemyIndex) {
     } else {
       diamondGain = 3 + en.level * 2;
     }
+  }
+
+  if (en.isBoss) {
+    moneyGain = 20 + (state.world - 1) * 10;
+    diamondGain = 20 + (state.world - 1) * 8;
+    showToast(`👑 ניצחת את בוס עולם ${state.world}! קיבלת +${moneyGain}₪ ו-+${diamondGain}💎!`);
+  } else if (options.byCollector) {
+    const collectorBonus = 1 + ((state.upgrades.collectorLevel || 1) - 1) * 0.25;
+    if (moneyGain > 0) moneyGain = Math.ceil(moneyGain * collectorBonus);
+    if (diamondGain > 0) diamondGain = Math.ceil(diamondGain * collectorBonus);
   }
 
   state.money += moneyGain;
@@ -631,18 +800,31 @@ function eatEnemy(enemyIndex) {
 
   saveState();
   updateHUD();
+  checkWorldProgress();
+}
 
-  if (enemies.length === 0) {
-    if (state.world < 50) {
-      showToast(`🏆 ניקית את כל הנחשים בעולם ${state.world}! עובר לעולם ${state.world + 1}...`);
-      setTimeout(() => {
-        initWorld(state.world + 1);
-      }, 1500);
-    } else {
-      saveState();
-      updateHUD();
-      showToast(`👑 כל הכבוד! ניצחת את כל 50 העולמות!`);
-    }
+function checkWorldProgress() {
+  const remainingRegular = enemies.filter((e) => !e.isBurglar);
+  if (remainingRegular.length > 0) return;
+
+  if (!bossSpawnedThisWorld) {
+    enemies = [];
+    bossSpawnedThisWorld = true;
+    spawnWorldBoss();
+    updateHUD();
+    return;
+  }
+
+  enemies = [];
+  if (state.world < MAX_WORLDS) {
+    showToast(`🏆 סיימת את עולם ${state.world}! עובר לעולם ${state.world + 1}...`);
+    setTimeout(() => {
+      initWorld(state.world + 1);
+    }, 1500);
+  } else {
+    saveState();
+    updateHUD();
+    showToast(`👑 כל הכבוד! ניצחת את כל ${MAX_WORLDS} העולמות!`);
   }
 }
 
@@ -704,8 +886,8 @@ function update() {
       let diff = targetAngle - player.angle;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      player.angle += diff * 0.25;
-      // מהירות אחידה ומלאה תמיד (ללא האטה בפניות!)
+      player.angle += diff * 0.48;
+      // מהירות אחידה ומלאה עם פניות חדות גם במהירות גבוהה
       player.speed = stats.baseSpeed;
       camera.panX *= 0.85;
       camera.panY *= 0.85;
@@ -717,17 +899,20 @@ function update() {
     let diff = targetAngle - player.angle;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    player.angle += diff * 0.25;
+    player.angle += diff * 0.48;
     player.speed = stats.baseSpeed;
   } else if (!isTouchMode && mouse.activeOnDesktop) {
     const distToMouse = Math.hypot(mouse.worldX - player.x, mouse.worldY - player.y);
-    if (distToMouse > 24) {
+    const stopRadius = Math.max(24, stats.baseSpeed * 3.5);
+    if (distToMouse > stopRadius) {
       const targetAngle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
       let diff = targetAngle - player.angle;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      player.angle += diff * 0.22;
-      player.speed = stats.baseSpeed;
+      player.angle += diff * 0.42;
+      player.speed = distToMouse < stopRadius + 28
+        ? Math.min(stats.baseSpeed, Math.max(1.5, (distToMouse - stopRadius + 10) * 0.4))
+        : stats.baseSpeed;
     } else {
       player.speed = 0;
     }
@@ -738,21 +923,26 @@ function update() {
   let nextX = player.x + Math.cos(player.angle) * player.speed;
   let nextY = player.y + Math.sin(player.angle) * player.speed;
 
-  // בדיקת חציית נהר: אפשר לחצות אם יש גשר עץ או אם קופצים באוויר
+  // בדיקת חציית נהר: אי אפשר לקפוץ מעל הנחל – חייבים קודם להפיל עץ ליצירת גשר!
   const inRiver = nextX > RIVER.x - stats.radius && nextX < RIVER.x + RIVER.width + stats.radius;
-  if (inRiver && player.jumpZ <= 2) {
+  if (inRiver) {
     const onBridge = bridges.some((b) => Math.abs(nextY - b.y) < 58);
     if (!onBridge) {
       if (player.x <= RIVER.x) nextX = RIVER.x - stats.radius;
       else nextX = RIVER.x + RIVER.width + stats.radius;
       if (Math.random() < 0.06) {
-        addFloatingText(player.x, player.y - 30, '🌊 קפוץ (⬆️) או נשוך/ירה על עץ לגשר!', '#4fc3f7');
+        addFloatingText(player.x, player.y - 30, '🌳 אי אפשר לקפוץ מעל הנחל! הפל עץ לגשר', '#ffe082');
       }
     }
   }
 
   player.x = Math.max(stats.radius, Math.min(WORLD_WIDTH - stats.radius, nextX));
   player.y = Math.max(stats.radius, Math.min(WORLD_HEIGHT - stats.radius, nextY));
+
+  if (!crossedRiverThisWorld && player.x > RIVER.x + RIVER.width + 30) {
+    crossedRiverThisWorld = true;
+    recordQuestProgress('cross_river', 1);
+  }
 
   // עדכון חוליות גוף הנחש
   updateSegments(player.segments, player.x, player.y, stats.radius * 0.72);
@@ -761,6 +951,9 @@ function update() {
   const distHome = Math.hypot(player.x - HOME_BASE.x, player.y - HOME_BASE.y);
   if (distHome < HOME_BASE.radius && player.hp < player.maxHp) {
     player.hp = Math.min(player.maxHp, player.hp + 0.45);
+    if (player.hp >= player.maxHp) {
+      recordQuestProgress('home_heal', 1);
+    }
     updateHUD();
   }
 
@@ -768,9 +961,9 @@ function update() {
     triggerShoot();
   }
 
-  // לידת נחש פורץ מדי פעם
+  // לידת נחש פורץ מדי פעם (לפני הבוס)
   burglarSpawnTimer--;
-  if (burglarSpawnTimer <= 0 && enemies.length > 0) {
+  if (burglarSpawnTimer <= 0 && !bossSpawnedThisWorld && enemies.length > 0) {
     burglarSpawnTimer = 780;
     if (state.money > 5 && Math.random() < 0.4) {
       spawnEnemySnake(HOME_BASE.x + 480, HOME_BASE.y + (Math.random() - 0.5) * 480, Math.max(1, state.level - 1), true);
@@ -779,8 +972,10 @@ function update() {
   }
 
   updateProjectiles();
+  updateEnemyProjectiles(stats);
   updateHelpers();
   updateEnemies(stats);
+  tickTimedQuests();
 
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
@@ -796,11 +991,16 @@ function update() {
     if (ft.life <= 0) floatingTexts.splice(i, 1);
   }
 
-  // עדכון מצלמה עם התחשבות בזום ובהזזת התצוגה (Pan)
+  // מבט קדימה וזום מותאם לשליטה קלה במהירות גבוהה
+  const targetLookX = player.speed > 0 ? Math.cos(player.angle) * Math.min(player.speed * 13, 95) : 0;
+  const targetLookY = player.speed > 0 ? Math.sin(player.angle) * Math.min(player.speed * 13, 95) : 0;
+  camera.lookAheadX += (targetLookX - camera.lookAheadX) * 0.1;
+  camera.lookAheadY += (targetLookY - camera.lookAheadY) * 0.1;
+
   const viewW = canvas.width / camera.zoom;
   const viewH = canvas.height / camera.zoom;
-  camera.x = Math.max(0, Math.min(WORLD_WIDTH - viewW, player.x - viewW / 2 + camera.panX));
-  camera.y = Math.max(0, Math.min(WORLD_HEIGHT - viewH, player.y - viewH / 2 + camera.panY));
+  camera.x = Math.max(0, Math.min(WORLD_WIDTH - viewW, player.x - viewW / 2 + camera.panX + camera.lookAheadX));
+  camera.y = Math.max(0, Math.min(WORLD_HEIGHT - viewH, player.y - viewH / 2 + camera.panY + camera.lookAheadY));
 }
 
 function updateSegments(segments, headX, headY, spacing) {
@@ -849,6 +1049,8 @@ function updateProjectiles() {
       if (Math.hypot(p.x - en.x, p.y - en.y) < en.radius + 14) {
         if (en.level <= state.level) {
           damageEnemy(j, p.damage, p.isLaser ? '⚡ לייזר!' : '🧪 ארס!');
+        } else if (en.isBoss) {
+          damageEnemy(j, p.damage * 0.65, p.isLaser ? '⚡ בוס!' : '🧪 בוס!');
         } else {
           en.hp -= p.damage * 0.3;
           addFloatingText(en.x, en.y - 20, `-${Math.round(p.damage * 0.3)}`, '#ffab91');
@@ -864,22 +1066,26 @@ function updateProjectiles() {
 }
 
 function updateHelpers() {
+  const u = state.upgrades;
+  const guardRange = HOME_BASE.radius + 220 + ((u.guardLevel || 1) - 1) * 80;
+  const fighterRange = 420 + ((u.fighterLevel || 1) - 1) * 70;
+
   for (const h of helperEntities) {
     if (h.attackTimer > 0) h.attackTimer--;
 
     let target = null;
 
     if (h.type === 'guard') {
-      target = enemies.find((e) => e.isBurglar || Math.hypot(e.x - HOME_BASE.x, e.y - HOME_BASE.y) < HOME_BASE.radius + 220);
+      target = enemies.find((e) => e.isBurglar || Math.hypot(e.x - HOME_BASE.x, e.y - HOME_BASE.y) < guardRange);
       if (!target) {
-        h.angle += 0.03;
+        h.angle += 0.03 + (h.level - 1) * 0.006;
         h.x = HOME_BASE.x + Math.cos(h.angle) * (HOME_BASE.radius - 20);
         h.y = HOME_BASE.y + Math.sin(h.angle) * (HOME_BASE.radius - 20);
       }
     } else if (h.type === 'collector') {
-      target = enemies.find((e) => e.level <= state.level);
+      target = enemies.find((e) => e.level <= state.level && !e.isBoss);
     } else if (h.type === 'fighter') {
-      let minDist = 420;
+      let minDist = fighterRange;
       for (const e of enemies) {
         const d = Math.hypot(e.x - player.x, e.y - player.y);
         if (d < minDist) {
@@ -895,11 +1101,27 @@ function updateHelpers() {
       h.y += Math.sin(angle) * h.speed;
 
       const d = Math.hypot(target.x - h.x, target.y - h.y);
-      if (d < target.radius + h.radius + 12 && h.attackTimer <= 0) {
-        h.attackTimer = 28;
+      const cooldown = Math.max(12, 28 - (h.level - 1) * 3);
+
+      // נחש לוחם משודרג (רמה 2+) יורה גם ארס/לייזר מרחוק!
+      if (h.type === 'fighter' && h.level >= 2 && d < 280 && d > target.radius + h.radius + 14 && h.attackTimer <= 0) {
+        h.attackTimer = cooldown;
+        const shotSpeed = h.level >= 3 ? 11.5 : 8.5;
+        projectiles.push({
+          x: h.x,
+          y: h.y,
+          vx: Math.cos(angle) * shotSpeed,
+          vy: Math.sin(angle) * shotSpeed,
+          isLaser: h.level >= 3,
+          damage: 16 + h.level * 8 + state.level * 3,
+          life: 40
+        });
+      } else if (d < target.radius + h.radius + 12 && h.attackTimer <= 0) {
+        h.attackTimer = cooldown;
         const idx = enemies.indexOf(target);
         if (idx !== -1) {
-          damageEnemy(idx, 18 + state.level * 4, h.label);
+          const dmg = 18 + state.level * 4 + (h.level - 1) * 14;
+          damageEnemy(idx, dmg, h.label, { byCollector: h.type === 'collector' });
         }
       }
     } else if (h.type !== 'guard') {
@@ -917,10 +1139,13 @@ function updateHelpers() {
 
 function updateEnemies(playerStats) {
   const playerOutsideHome = Math.hypot(player.x - HOME_BASE.x, player.y - HOME_BASE.y) > HOME_BASE.radius + 10;
+  const diffCfg = getDifficultyConfig();
+  let burglarEscaped = false;
 
   for (let i = enemies.length - 1; i >= 0; i--) {
     const en = enemies[i];
     if (en.biteCooldown > 0) en.biteCooldown--;
+    if (en.spitCooldown > 0) en.spitCooldown--;
 
     let moveSpeed = en.speed;
 
@@ -935,22 +1160,37 @@ function updateEnemies(playerStats) {
           showToast(`🚨 נחש פורץ נכנס לבית וגנב ${stolen}₪! קנה נחש שומר בחנות להגנה!`);
         }
         enemies.splice(i, 1);
+        burglarEscaped = true;
         continue;
       }
     } else {
       const distToPlayer = Math.hypot(player.x - en.x, player.y - en.y);
-      const chaseRange = 340 + Math.min(state.world * 8, 160);
+      const chaseRange = en.isBoss ? 1400 : (400 + Math.min(state.world * 10, 200));
 
-      if (en.level > state.level && playerOutsideHome && distToPlayer < chaseRange) {
-        // נחשים גדולים רודפים אחרי השחקן כשהוא יוצא מהבית
+      if ((en.level > state.level || en.isBoss) && playerOutsideHome && distToPlayer < chaseRange) {
+        // נחשים גדולים ובוסים רודפים אחרי השחקן כשהוא יוצא מהבית
         const targetAngle = Math.atan2(player.y - en.y, player.x - en.x);
         let diff = targetAngle - en.angle;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
-        en.angle += diff * 0.08;
+        en.angle += diff * (en.isBoss ? 0.11 : 0.085);
         moveSpeed = en.speed * 1.15;
+
+        // ירי ארס סגול מצד נחשים חזקים (ברמה קשה/מטורפת) ומצד הבוס תמיד!
+        if ((diffCfg.enemySpit || en.isBoss) && en.spitCooldown <= 0 && distToPlayer < 420) {
+          en.spitCooldown = (en.isBoss ? 105 : diffCfg.spitCooldown) + Math.floor(Math.random() * 45);
+          const aim = Math.atan2(player.y - en.y, player.x - en.x);
+          const sp = 6.2 * diffCfg.speedMult;
+          enemyProjectiles.push({
+            x: en.x + Math.cos(aim) * en.radius,
+            y: en.y + Math.sin(aim) * en.radius,
+            vx: Math.cos(aim) * sp,
+            vy: Math.sin(aim) * sp,
+            damage: Math.round((10 + en.level * 3) * diffCfg.dmgMult * (en.isBoss ? 1.25 : 1)),
+            life: 68
+          });
+        }
       } else if (en.level < state.level && distToPlayer < 220) {
-        // נחשים קטנים מנסים לברוח כשהשחקן מתקרב
         const fleeAngle = Math.atan2(en.y - player.y, en.x - player.x);
         let diff = fleeAngle - en.angle;
         while (diff > Math.PI) diff -= Math.PI * 2;
@@ -974,7 +1214,7 @@ function updateEnemies(playerStats) {
     if (!en.isBurglar && Math.hypot(nx - HOME_BASE.x, ny - HOME_BASE.y) < HOME_BASE.radius + 35) {
       en.angle += Math.PI;
     }
-    if (nx > RIVER.x - 20 && nx < RIVER.x + RIVER.width + 20) {
+    if (!en.isBoss && nx > RIVER.x - 20 && nx < RIVER.x + RIVER.width + 20) {
       en.angle = Math.PI - en.angle;
     }
 
@@ -985,7 +1225,7 @@ function updateEnemies(playerStats) {
     if (player.jumpZ < 8) {
       const dist = Math.hypot(en.x - player.x, en.y - player.y);
       if (dist < en.radius + playerStats.radius) {
-        if (en.level > state.level) {
+        if (en.level > state.level && !en.isBoss) {
           if (player.invulnerableTimer <= 0) {
             sendPlayerHome(`נחש גדול ברמה ${en.level} תפס אותך`);
             break;
@@ -996,21 +1236,59 @@ function updateEnemies(playerStats) {
             player.biteAnim = 10;
             damageEnemy(i, playerStats.biteDamage, '🦷 נשיכה!');
           }
-          // נחשים באותה רמה נושכים בחזרה ומורידים חיים בקרב
-          if (en.hp > 0 && en.level === state.level && en.biteCooldown <= 0 && player.invulnerableTimer <= 0) {
-            en.biteCooldown = 36;
-            const retDmg = 6 + en.level * 2;
+          // בוסים ונחשים באותה רמה/קטנים נושכים בחזרה בעוצמה לפי רמת הקושי
+          if (en.hp > 0 && en.biteCooldown <= 0 && player.invulnerableTimer <= 0) {
+            en.biteCooldown = en.isBoss ? 28 : (en.level === state.level ? 32 : 48);
+            const rawRet = en.isBoss ? (16 + en.level * 4) : (en.level === state.level ? (10 + en.level * 3) : (4 + en.level));
+            const retDmg = Math.round(rawRet * diffCfg.dmgMult);
             player.hp -= retDmg;
             addFloatingText(player.x, player.y - 32, `-${retDmg} ❤️`, '#ff5252');
             updateHUD();
             if (player.hp <= 0) {
-              sendPlayerHome('נגמרו לך החיים בקרב');
+              sendPlayerHome(en.isBoss ? `בוס עולם ${state.world} הביס אותך` : 'נגמרו לך החיים בקרב');
               break;
             }
           }
         }
       }
     }
+  }
+
+  if (burglarEscaped) {
+    checkWorldProgress();
+  }
+}
+
+function updateEnemyProjectiles(playerStats) {
+  for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
+    const ep = enemyProjectiles[i];
+    ep.x += ep.vx;
+    ep.y += ep.vy;
+    ep.life--;
+
+    // הבית מגן מפני כדורי ארס של אויבים
+    if (Math.hypot(ep.x - HOME_BASE.x, ep.y - HOME_BASE.y) < HOME_BASE.radius) {
+      enemyProjectiles.splice(i, 1);
+      continue;
+    }
+
+    if (player.jumpZ < 6 && player.invulnerableTimer <= 0) {
+      const dist = Math.hypot(ep.x - player.x, ep.y - player.y);
+      if (dist < playerStats.radius + 9) {
+        player.hp -= ep.damage;
+        spawnParticles(player.x, player.y, '#d500f9', 12);
+        addFloatingText(player.x, player.y - 30, `💜 ארס אויב! -${ep.damage}`, '#ea80fc');
+        enemyProjectiles.splice(i, 1);
+        updateHUD();
+        if (player.hp <= 0) {
+          sendPlayerHome('נפגעת מארס אויב');
+          break;
+        }
+        continue;
+      }
+    }
+
+    if (ep.life <= 0) enemyProjectiles.splice(i, 1);
   }
 }
 
@@ -1025,32 +1303,38 @@ function draw() {
   ctx.scale(camera.zoom, camera.zoom);
   ctx.translate(-camera.x, -camera.y);
 
-  // רקע הקרקע
-  const worldHue = ((state.world - 1) * 28) % 360;
-  ctx.fillStyle = night ? `hsl(${worldHue}, 28%, 9%)` : `hsl(${(115 + worldHue) % 360}, 32%, 18%)`;
+  // רקע הקרקע הייחודי לכל אחד מ-150 העולמות
+  const theme = currentWorldTheme || getWorldTheme(state.world);
+  const light = night ? Math.max(5, theme.bgLight - 9) : theme.bgLight;
+  ctx.fillStyle = `hsl(${theme.bgHue}, ${theme.bgSat}%, ${light}%)`;
   ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
   // רשת עדינה
-  ctx.strokeStyle = night ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.06)';
+  ctx.strokeStyle = theme.decor === 'cyber'
+    ? 'rgba(0, 229, 255, 0.14)'
+    : (night ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.06)');
   ctx.lineWidth = 1;
-  for (let x = 0; x < WORLD_WIDTH; x += 80) {
+  for (let x = 0; x < WORLD_WIDTH; x += theme.gridStep) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, WORLD_HEIGHT);
     ctx.stroke();
   }
-  for (let y = 0; y < WORLD_HEIGHT; y += 80) {
+  for (let y = 0; y < WORLD_HEIGHT; y += theme.gridStep) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(WORLD_WIDTH, y);
     ctx.stroke();
   }
 
-  // ציור הנהר
+  // קישוטי שטח ייחודיים לפי הסביבה של העולם
+  drawWorldDecorations(theme);
+
+  // ציור הנהר לפי סביבת העולם
   const riverGrad = ctx.createLinearGradient(RIVER.x, 0, RIVER.x + RIVER.width, 0);
-  riverGrad.addColorStop(0, '#0277bd');
-  riverGrad.addColorStop(0.5, '#29b6f6');
-  riverGrad.addColorStop(1, '#0277bd');
+  riverGrad.addColorStop(0, theme.riverEdge);
+  riverGrad.addColorStop(0.5, theme.riverMid);
+  riverGrad.addColorStop(1, theme.riverEdge);
   ctx.fillStyle = riverGrad;
   ctx.fillRect(RIVER.x, 0, RIVER.width, WORLD_HEIGHT);
 
@@ -1107,14 +1391,14 @@ function draw() {
 
   // ציור נחשים עוזרים
   for (const h of helperEntities) {
-    drawSnakeBody(h.segments, h.radius, 'circle', h.color, '#ffffff');
+    drawSnakeBody(h.segments, h.radius, 'circle', h.color, '#ffffff', h.level >= 2);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(h.label, h.x, h.y - h.radius - 10);
   }
 
-  // ציור נחשי אויב
+  // ציור נחשי אויב ובוסים
   for (const en of enemies) {
     const isSmallerOrEqual = en.level <= state.level;
     drawSnakeBody(
@@ -1122,26 +1406,45 @@ function draw() {
       en.radius,
       en.style.shape,
       en.isBurglar ? '#d50000' : en.style.primary,
-      en.style.secondary
+      en.style.secondary,
+      en.isBoss
     );
-    drawSnakeEyes(en.x, en.y, en.angle, en.radius, false, false);
+    drawSnakeEyes(en.x, en.y, en.angle, en.radius, en.isBoss, false);
 
-    const barW = 54;
-    const barH = 7;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    const barW = en.isBoss ? 84 : 54;
+    const barH = en.isBoss ? 9 : 7;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.fillRect(en.x - barW / 2, en.y - en.radius - 22, barW, barH);
-    ctx.fillStyle = isSmallerOrEqual ? '#00e676' : '#ff1744';
+    ctx.fillStyle = en.isBoss ? '#ffd600' : (isSmallerOrEqual ? '#00e676' : '#ff1744');
     ctx.fillRect(en.x - barW / 2, en.y - en.radius - 22, barW * Math.max(0, en.hp / en.maxHp), barH);
 
-    ctx.font = 'bold 13px sans-serif';
+    ctx.font = en.isBoss ? 'bold 15px sans-serif' : 'bold 13px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = isSmallerOrEqual ? '#b9f6ca' : '#ff8a80';
-    const tag = en.isBurglar
-      ? `🦹 פורץ לבית! (רמה ${en.level})`
-      : isSmallerOrEqual
-        ? `🟢 רמה ${en.level} (אפשר לאכול!)`
-        : `🔴 רמה ${en.level} (גדול ממך!)`;
+    ctx.fillStyle = en.isBoss ? '#ffd600' : (isSmallerOrEqual ? '#b9f6ca' : '#ff8a80');
+    const tag = en.isBoss
+      ? `👑 בוס עולם ${state.world}! (רמה ${en.level})`
+      : en.isBurglar
+        ? `🦹 פורץ לבית! (רמה ${en.level})`
+        : isSmallerOrEqual
+          ? `🟢 רמה ${en.level} (אפשר לאכול!)`
+          : `🔴 רמה ${en.level} (גדול ממך!)`;
     ctx.fillText(tag, en.x, en.y - en.radius - 28);
+  }
+
+  // ציור כדורי ארס סגולים של האויבים
+  for (const ep of enemyProjectiles) {
+    ctx.save();
+    ctx.fillStyle = '#d500f9';
+    ctx.shadowColor = '#d500f9';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(ep.x, ep.y, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f3e5f5';
+    ctx.beginPath();
+    ctx.arc(ep.x, ep.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   // ציור קליעים (ארס ולייזר)
@@ -1327,13 +1630,151 @@ function drawSnakeEyes(x, y, angle, radius, showTeeth, showLaserVisor) {
   ctx.restore();
 }
 
+// ציור קישוטי שטח ייחודיים לכל עולם
+function drawWorldDecorations(theme) {
+  for (const d of worldDecorations) {
+    ctx.save();
+    ctx.translate(d.x, d.y);
+    ctx.rotate(d.rot);
+    ctx.fillStyle = d.color;
+    ctx.globalAlpha = 0.65;
+
+    if (theme.decor === 'crystal' || theme.decor === 'cyber') {
+      ctx.beginPath();
+      ctx.moveTo(0, -d.size);
+      ctx.lineTo(d.size * 0.7, 0);
+      ctx.lineTo(0, d.size);
+      ctx.lineTo(-d.size * 0.7, 0);
+      ctx.closePath();
+      ctx.fill();
+    } else if (theme.decor === 'star') {
+      ctx.beginPath();
+      for (let s = 0; s < 10; s++) {
+        const rad = s % 2 === 0 ? d.size : d.size * 0.4;
+        const a = (s * Math.PI) / 5;
+        if (s === 0) ctx.moveTo(Math.cos(a) * rad, Math.sin(a) * rad);
+        else ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else if (theme.decor === 'cactus' || theme.decor === 'palm') {
+      ctx.beginPath();
+      ctx.arc(0, 0, d.size * 0.65, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-d.size * 0.25, -d.size, d.size * 0.5, d.size * 2);
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, d.size * 0.75, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 // ============================================================================
-// ממשק משתמש, חנות שדרוגים ובחירת עולמות
+// מערכת משימות עם הגבלת זמן וקנס + ממשק משתמש וחנות שדרוגים
 // ============================================================================
+function recordQuestProgress(type, amount = 1) {
+  ensureQuests();
+  let changed = false;
+
+  for (let i = state.quests.active.length - 1; i >= 0; i--) {
+    const q = state.quests.active[i];
+    if (q.type !== type) continue;
+
+    q.progress = Math.min(q.target, q.progress + amount);
+    changed = true;
+
+    if (q.progress >= q.target) {
+      state.money += q.rewardMoney;
+      state.diamonds += q.rewardDiamonds;
+      state.quests.completed = (state.quests.completed || 0) + 1;
+      showToast(`🎉 משימה הושלמה: ${q.title}! +${q.rewardMoney}₪ +${q.rewardDiamonds}💎`);
+      spawnParticles(player.x, player.y, '#00e676', 25);
+      state.quests.active.splice(i, 1);
+      ensureQuests();
+    }
+  }
+
+  if (changed) {
+    saveState();
+    updateHUD();
+    if (!document.getElementById('questsModal').classList.contains('hidden')) {
+      renderQuests();
+    }
+  }
+}
+
+function tickTimedQuests() {
+  const shopOpen = !document.getElementById('shopModal').classList.contains('hidden');
+  const questsOpen = !document.getElementById('questsModal').classList.contains('hidden');
+  if (shopOpen || questsOpen) return;
+
+  questTickCounter++;
+  if (questTickCounter < 60) return;
+  questTickCounter = 0;
+
+  let changed = false;
+  for (let i = state.quests.active.length - 1; i >= 0; i--) {
+    const q = state.quests.active[i];
+    if (!q.timed) continue;
+
+    q.timeRemaining = Math.max(0, q.timeRemaining - 1);
+    changed = true;
+
+    if (q.timeRemaining <= 0) {
+      const lostMoney = Math.min(state.money, 4);
+      const lostDiamonds = Math.min(state.diamonds, 3);
+      state.money -= lostMoney;
+      state.diamonds -= lostDiamonds;
+      showToast(`⏰ נגמר הזמן למשימה "${q.title}"! קנס: -${lostMoney}₪ -${lostDiamonds}💎`);
+      state.quests.active.splice(i, 1);
+      ensureQuests();
+    }
+  }
+
+  if (changed) {
+    saveState();
+    updateHUD();
+  }
+}
+
+function renderQuests() {
+  ensureQuests();
+  document.getElementById('completedQuestsCount').textContent = state.quests.completed || 0;
+  const container = document.getElementById('questsList');
+  container.innerHTML = '';
+
+  for (const q of state.quests.active) {
+    const pct = Math.min(100, Math.round((q.progress / q.target) * 100));
+    const timerHtml = q.timed
+      ? `<span style="color: ${q.timeRemaining <= 15 ? '#ff5252' : '#ffd54f'};">⏱️ נותרו ${q.timeRemaining} שנ'</span>`
+      : `<span style="color: #a5d6a7;">♾️ ללא הגבלת זמן</span>`;
+
+    const card = document.createElement('div');
+    card.className = 'shop-card';
+    card.innerHTML = `
+      <div>
+        <h4>${q.title}</h4>
+        <p>התקדמות: <strong>${q.progress}/${q.target}</strong> | ${timerHtml}</p>
+      </div>
+      <div class="quest-progress-bg">
+        <div class="quest-progress-fill" style="width: ${pct}%;"></div>
+      </div>
+      <div class="quest-reward">🎁 פרס: +${q.rewardMoney} ₪ ו-+${q.rewardDiamonds} 💎</div>
+    `;
+    container.appendChild(card);
+  }
+}
+
 function updateHUD() {
   const style = LEVEL_STYLES[(state.level - 1) % LEVEL_STYLES.length];
+  const diffCfg = getDifficultyConfig();
+  const regularLeft = enemies.filter((e) => !e.isBurglar).length;
+
   document.getElementById('worldNum').textContent = state.world;
-  document.getElementById('snakesLeft').textContent = enemies.length;
+  document.getElementById('worldBiome').textContent = currentWorldTheme ? `(${currentWorldTheme.name})` : '';
+  document.getElementById('snakesLeft').textContent = bossSpawnedThisWorld ? '👑 בוס' : regularLeft;
   document.getElementById('playerLevel').textContent = state.level;
   document.getElementById('shapeName').textContent = style.name;
   document.getElementById('moneyCount').textContent = state.money;
@@ -1342,6 +1783,20 @@ function updateHUD() {
   const hpPct = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100));
   document.getElementById('hpBarFill').style.width = `${hpPct}%`;
   document.getElementById('hpText').textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
+
+  const diffBtn = document.getElementById('difficultyBtn');
+  if (diffBtn) {
+    diffBtn.textContent = diffCfg.label;
+    diffBtn.className = `action-btn diff-btn ${diffCfg.cssClass}`;
+  }
+
+  const questsBtn = document.getElementById('questsBtn');
+  if (questsBtn) {
+    const timedMin = state.quests.active
+      .filter((q) => q.timed)
+      .reduce((min, q) => Math.min(min, q.timeRemaining), Infinity);
+    questsBtn.textContent = Number.isFinite(timedMin) ? `📜 משימות (⏱️${timedMin}ש)` : '📜 משימות';
+  }
 
   document.getElementById('dayNightBtn').textContent = isNightTime() ? '🌙' : '☀️';
 }
@@ -1433,6 +1888,18 @@ function renderShop() {
       }
     },
     {
+      title: `⬆️💰 שדרוג נחשים אוספים (רמה ${u.collectorLevel || 1})`,
+      desc: 'מגדיל מהירות, כוח ומעניק +25% בונוס שלל מהאוספים!',
+      costMoney: 10 * (u.collectorLevel || 1),
+      costDiamonds: 5 * (u.collectorLevel || 1),
+      locked: u.collectorSnakes === 0,
+      lockedLabel: 'קנה קודם נחש אוסף',
+      action: () => {
+        u.collectorLevel = (u.collectorLevel || 1) + 1;
+        rebuildHelpers();
+      }
+    },
+    {
       title: `⚔️ נחש עוזר לוחם (יש לך: ${u.fighterSnakes})`,
       desc: 'נחש שנלחם לצידך ביחד מול נחשים אחרים!',
       costMoney: 10 + u.fighterSnakes * 10,
@@ -1443,12 +1910,36 @@ function renderShop() {
       }
     },
     {
+      title: `⬆️⚔️ שדרוג נחשים לוחמים (רמה ${u.fighterLevel || 1})`,
+      desc: 'מגביר מהירות, נזק, קצב תקיפה ויורה ארס/לייזר מרחוק (מרמה 2)!',
+      costMoney: 12 * (u.fighterLevel || 1),
+      costDiamonds: 6 * (u.fighterLevel || 1),
+      locked: u.fighterSnakes === 0,
+      lockedLabel: 'קנה קודם נחש לוחם',
+      action: () => {
+        u.fighterLevel = (u.fighterLevel || 1) + 1;
+        rebuildHelpers();
+      }
+    },
+    {
       title: `🏠 נחש עוזר שומר על הבית (יש לך: ${u.guardSnakes})`,
       desc: 'שומר על הבית שלך כדי שנחשים פורצים לא יגנבו כסף!',
       costMoney: 8 + u.guardSnakes * 8,
       costDiamonds: 4,
       action: () => {
         u.guardSnakes++;
+        rebuildHelpers();
+      }
+    },
+    {
+      title: `⬆️🛡️ שדרוג נחשים שומרים (רמה ${u.guardLevel || 1})`,
+      desc: 'מגדיל את מהירות, כוח וטווח ההגנה של השומרים סביב הבית!',
+      costMoney: 10 * (u.guardLevel || 1),
+      costDiamonds: 5 * (u.guardLevel || 1),
+      locked: u.guardSnakes === 0,
+      lockedLabel: 'קנה קודם נחש שומר',
+      action: () => {
+        u.guardLevel = (u.guardLevel || 1) + 1;
         rebuildHelpers();
       }
     }
@@ -1464,29 +1955,35 @@ function fillShopSection(containerId, items) {
 
   for (const item of items) {
     const canAfford = state.money >= item.costMoney && state.diamonds >= item.costDiamonds;
+    const isDisabled = Boolean(item.owned || item.locked || !canAfford);
     const card = document.createElement('div');
     card.className = 'shop-card';
 
     let priceParts = [];
     if (item.costMoney > 0) priceParts.push(`${item.costMoney} ₪`);
     if (item.costDiamonds > 0) priceParts.push(`${item.costDiamonds} 💎`);
-    const priceLabel = item.owned ? 'נרכש ✅' : `קנה (${priceParts.join(' + ')})`;
+    const priceLabel = item.owned
+      ? 'נרכש ✅'
+      : item.locked
+        ? (item.lockedLabel || 'נעול')
+        : `קנה (${priceParts.join(' + ')})`;
 
     card.innerHTML = `
       <div>
         <h4>${item.title}</h4>
         <p>${item.desc}</p>
       </div>
-      <button class="buy-btn" ${item.owned || !canAfford ? 'disabled' : ''}>${priceLabel}</button>
+      <button class="buy-btn" ${isDisabled ? 'disabled' : ''}>${priceLabel}</button>
     `;
 
     const btn = card.querySelector('.buy-btn');
     btn.addEventListener('click', () => {
-      if (item.owned) return;
+      if (item.owned || item.locked) return;
       if (state.money < item.costMoney || state.diamonds < item.costDiamonds) return;
       state.money -= item.costMoney;
       state.diamonds -= item.costDiamonds;
       item.action();
+      recordQuestProgress('shop_buy', 1);
       saveState();
       updateHUD();
       renderShop();
@@ -1507,6 +2004,25 @@ document.getElementById('shopBtn').addEventListener('click', () => {
 
 document.getElementById('closeShopBtn').addEventListener('click', () => {
   document.getElementById('shopModal').classList.add('hidden');
+});
+
+document.getElementById('questsBtn').addEventListener('click', () => {
+  renderQuests();
+  document.getElementById('questsModal').classList.remove('hidden');
+});
+
+document.getElementById('closeQuestsBtn').addEventListener('click', () => {
+  document.getElementById('questsModal').classList.add('hidden');
+});
+
+document.getElementById('difficultyBtn').addEventListener('click', () => {
+  const order = ['normal', 'hard', 'insane'];
+  const idx = order.indexOf(state.difficulty);
+  state.difficulty = order[(idx + 1) % order.length];
+  saveState();
+  const diffCfg = getDifficultyConfig();
+  showToast(`רמת הקושי שונתה ל-${diffCfg.label}!`);
+  initWorld(state.world);
 });
 
 document.getElementById('dayNightBtn').addEventListener('click', () => {

@@ -1804,20 +1804,12 @@ function updateWorldEagle(playerStats) {
               addFloatingText(player.x, player.y - 38, '🦅 התחמקת מהנשר!', '#81d4fa');
             }
           } else {
-            const diffCfg = getDifficultyConfig();
-            const dmg = Math.round(32 * diffCfg.dmgMult);
-            player.hp -= dmg;
-            player.invulnerableTimer = 45;
             worldEagle.hitCooldown = 110;
             worldEagle.swoopDuration = 0;
-            worldEagle.altitude = 0.9;
-            spawnParticles(player.x, player.y, '#ffcc80', 18);
-            addFloatingText(player.x, player.y - 36, `🦅 הנשר פגע בך! -${dmg}`, '#ff5252');
-            updateHUD();
-            if (player.hp <= 0) {
-              sendPlayerHome('הנשר תפס אותך מהשמיים');
-              return;
-            }
+            worldEagle.altitude = 0.95;
+            spawnParticles(player.x, player.y, '#ff5252', 22);
+            sendPlayerHome('הנשר תפס אותך ונפסלת!');
+            return;
           }
         }
       }

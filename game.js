@@ -4,7 +4,7 @@
 
 const SAVE_KEY = 'beeri_snake_game_save_v2';
 const LEGACY_SAVE_KEY = 'beeri_snake_game_save_v1';
-const MAX_WORLDS = 150;
+const MAX_WORLDS = 200;
 
 // מיני נחשים אמיתיים לפי רמה (מהנחש הראשון תלום-קשקשים, דרך צפע מצוי וצפע החרמון, ועד לאנקונדה ברמה הסופית – לפי רמת סכנה ומראה אמיתיים!)
 const LEVEL_STYLES = [
@@ -45,7 +45,7 @@ const WORLD_BIOMES = [
 ];
 
 const NATURE_REGION_NAMES = [
-  '', 'עמק', 'פסגות', 'צפוני', 'דרומי', 'מזרחי', 'מערבי', 'פראי', 'עתיק', 'גבוה', 'עמוק', 'שליו', 'ירוק-עד', 'איתן', 'רחב'
+  '', 'עמק', 'פסגות', 'צפוני', 'דרומי', 'מזרחי', 'מערבי', 'פראי', 'עתיק', 'גבוה', 'עמוק', 'שליו', 'ירוק-עד', 'איתן', 'רחב', 'סוער', 'קדמון', 'מוזהב', 'נסתר', 'אגדי'
 ];
 
 function getWorldTheme(worldNum) {
@@ -63,12 +63,12 @@ function getWorldTheme(worldNum) {
   };
 }
 
-// רמות קושי במשחק (ברירת מחדל: קשה)
+// רמות קושי במשחק (ברירת מחדל: קשה – מעבר עולמות מאתגר יותר)
 const DIFFICULTIES = {
-  easy: { label: '🌱 קלילה', hpMult: 0.65, speedMult: 0.78, dmgMult: 0.55, enemySpit: false, spitCooldown: 220, cssClass: 'diff-easy' },
-  normal: { label: '⚔️ רגיל', hpMult: 1.0, speedMult: 1.0, dmgMult: 1.0, enemySpit: false, spitCooldown: 180, cssClass: 'diff-normal' },
-  hard: { label: '🔥 קשה', hpMult: 1.55, speedMult: 1.2, dmgMult: 1.5, enemySpit: true, spitCooldown: 155, cssClass: 'diff-hard' },
-  insane: { label: '💀 מטורף', hpMult: 2.2, speedMult: 1.35, dmgMult: 2.2, enemySpit: true, spitCooldown: 110, cssClass: 'diff-insane' }
+  easy: { label: '🌱 קלילה', hpMult: 0.7, speedMult: 0.8, dmgMult: 0.55, enemySpit: false, spitCooldown: 220, cssClass: 'diff-easy' },
+  normal: { label: '⚔️ רגיל', hpMult: 1.2, speedMult: 1.05, dmgMult: 1.15, enemySpit: false, spitCooldown: 170, cssClass: 'diff-normal' },
+  hard: { label: '🔥 קשה', hpMult: 1.85, speedMult: 1.26, dmgMult: 1.75, enemySpit: true, spitCooldown: 135, cssClass: 'diff-hard' },
+  insane: { label: '💀 מטורף', hpMult: 2.6, speedMult: 1.42, dmgMult: 2.5, enemySpit: true, spitCooldown: 95, cssClass: 'diff-insane' }
 };
 
 // משימות צדדיות (בנוסף לציד נחשים – מגבלת זמן של 2 דקות / 120 שניות למשימות המוגבלות בזמן!)
@@ -696,12 +696,12 @@ function initWorld(worldNum) {
 
   for (let i = 0; i < totalSnakes; i++) {
     let enemyLevel;
-    if (i < Math.ceil(totalSnakes * 0.45)) {
+    if (i < Math.ceil(totalSnakes * 0.35)) {
       enemyLevel = Math.max(1, state.level - 1 + (i % 2));
-    } else if (i < Math.ceil(totalSnakes * 0.80)) {
+    } else if (i < Math.ceil(totalSnakes * 0.75)) {
       enemyLevel = state.level + 1;
     } else {
-      enemyLevel = state.level + 2;
+      enemyLevel = (state.world >= 4 && i >= totalSnakes - 2) ? (state.level + 3) : (state.level + 2);
     }
 
     const onRightSide = i >= Math.ceil(totalSnakes * 0.5);
@@ -749,11 +749,15 @@ function initWorld(worldNum) {
 
 function spawnWorldBoss() {
   const diffCfg = getDifficultyConfig();
-  const bossLevel = Math.max(state.level + 2, state.world + 2);
+  const bossLevel = Math.max(state.level + 3, state.world + 2);
   const bossX = player.x < RIVER.x ? (RIVER.x + RIVER.width + 320) : 680;
   const bossY = WORLD_HEIGHT / 2 + (Math.random() - 0.5) * 300;
   spawnEnemySnake(bossX, bossY, bossLevel, false, true);
-  showToast(`👑 בוס סוף עולם ${state.world} הגיע! הנחש הכי חזק בעולם – הבס אותו כדי להתקדם (${diffCfg.label})!`);
+  // 2 שומרי ראש חזקים המלווים את הבוס כדי שמעבר עולם יהיה מאתגר באמת!
+  const guardLevel = state.level + 1;
+  spawnEnemySnake(bossX, Math.max(180, bossY - 120), guardLevel, false, false);
+  spawnEnemySnake(bossX, Math.min(WORLD_HEIGHT - 180, bossY + 120), guardLevel, false, false);
+  showToast(`👑 בוס סוף עולם ${state.world} הגיע עם 2 שומרי ראש! הבס את כולם כדי לעבור עולם (${diffCfg.label})!`);
 }
 
 function spawnEnemySnake(x, y, level, isBurglar = false, isBoss = false) {
@@ -763,8 +767,8 @@ function spawnEnemySnake(x, y, level, isBurglar = false, isBoss = false) {
   const dangerHpMult = 1 + dangerBonus * 0.09;
   const radius = 13 + Math.min(level * 2.1, 25) + (isBoss ? 10 : 0);
   const maxHp = isBoss
-    ? Math.round((180 + level * 45 + (state.world - 1) * 40) * diffCfg.hpMult * dangerHpMult)
-    : Math.round((45 + level * 26 + (state.world - 1) * 10) * diffCfg.hpMult * dangerHpMult);
+    ? Math.round((340 + level * 70 + (state.world - 1) * 85) * diffCfg.hpMult * dangerHpMult)
+    : Math.round((70 + level * 36 + (state.world - 1) * 26) * diffCfg.hpMult * dangerHpMult);
   const segCount = 6 + Math.min(level * 2, 16) + (isBoss ? 6 : 0);
   const segs = [];
   for (let i = 0; i < segCount; i++) {
@@ -774,8 +778,8 @@ function spawnEnemySnake(x, y, level, isBurglar = false, isBoss = false) {
   const baseSpeed = isBurglar
     ? (2.6 + Math.min(state.world * 0.05, 1.0))
     : isBoss
-      ? (2.25 + Math.min(state.world * 0.08, 1.4) + speedDanger * 0.5)
-      : (1.9 + Math.min(level * 0.14 + (state.world - 1) * 0.06, 2.0) + speedDanger);
+      ? (2.45 + Math.min(state.world * 0.09, 1.65) + speedDanger * 0.55)
+      : (2.08 + Math.min(level * 0.15 + (state.world - 1) * 0.08, 2.3) + speedDanger);
   enemies.push({
     x,
     y,
@@ -788,6 +792,7 @@ function spawnEnemySnake(x, y, level, isBurglar = false, isBoss = false) {
     style,
     isBurglar,
     isBoss,
+    enraged: false,
     segments: segs,
     turnTimer: 0,
     biteCooldown: 0,
@@ -855,6 +860,7 @@ function createHelper(type, index) {
 
   return {
     type,
+    index,
     level: hLevel,
     label: `${labels[type]} ★${hLevel}`,
     color: colors[type],
@@ -864,6 +870,9 @@ function createHelper(type, index) {
     speed: 3.3 + (hLevel - 1) * 0.45,
     radius: 12 + Math.min((hLevel - 1) * 2, 10),
     attackTimer: 0,
+    wanderTargetX: 160 + Math.random() * (WORLD_WIDTH - 320),
+    wanderTargetY: 160 + Math.random() * (WORLD_HEIGHT - 320),
+    forageTimer: 120 + Math.floor(Math.random() * 90),
     segments: segs
   };
 }
@@ -1398,6 +1407,14 @@ function sendPlayerHome(reason) {
   recordCompletedRun();
   SFX.hurt();
   comboStreak = 0;
+  if (bossSpawnedThisWorld) {
+    for (const e of enemies) {
+      if (e.isBoss && e.hp > 0) {
+        e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * 0.35));
+        addFloatingText(e.x, e.y - 45, '👑 +35% חיים!', '#ff8a80');
+      }
+    }
+  }
   if (rareEgg && rareEgg.carried) {
     rareEgg.carried = false;
     rareEgg.x = rareEgg.origX;
@@ -1788,10 +1805,44 @@ function updateProjectiles() {
 function updateHelpers() {
   const u = state.upgrades;
   const guardRange = HOME_BASE.radius + 220 + ((u.guardLevel || 1) - 1) * 80;
-  const fighterRange = 420 + ((u.fighterLevel || 1) - 1) * 70;
+  const fighterRange = 200 + Math.min((u.fighterLevel || 1) - 1) * 20, 70;
+  const playerOutsideHome = Math.hypot(player.x - HOME_BASE.x, player.y - HOME_BASE.y) > HOME_BASE.radius + 10;
+  const pSpeed = getPlayerStats().baseSpeed;
 
   for (const h of helperEntities) {
     if (h.attackTimer > 0) h.attackTimer--;
+
+    // 1) נחש אוסף משאבים: מסתובב בחופשיות בכל מקום במפה ומביא כסף ויהלומים בלי להרוג נחשים!
+    if (h.type === 'collector') {
+      const distTarget = Math.hypot(h.wanderTargetX - h.x, h.wanderTargetY - h.y);
+      if (distTarget < 36 || Math.random() < 0.008) {
+        h.wanderTargetX = 140 + Math.random() * (WORLD_WIDTH - 280);
+        h.wanderTargetY = 140 + Math.random() * (WORLD_HEIGHT - 280);
+      }
+      const wanderAng = Math.atan2(h.wanderTargetY - h.y, h.wanderTargetX - h.x);
+      h.x += Math.cos(wanderAng) * h.speed;
+      h.y += Math.sin(wanderAng) * h.speed;
+      h.x = Math.max(70, Math.min(WORLD_WIDTH - 70, h.x));
+      h.y = Math.max(70, Math.min(WORLD_HEIGHT - 70, h.y));
+
+      h.forageTimer = (h.forageTimer || 120) - 1;
+      if (h.forageTimer <= 0) {
+        h.forageTimer = Math.max(130, 260 - (h.level - 1) * 22) + Math.floor(Math.random() * 50);
+        const moneyFound = Math.random() < 0.65 ? (1 + Math.floor(h.level * 0.8)) : 0;
+        const diamFound = (moneyFound === 0 || Math.random() < 0.55) ? (1 + Math.floor(h.level * 0.7)) : 0;
+        state.money += moneyFound;
+        state.diamonds += diamFound;
+        spawnParticles(h.x, h.y, '#ffd54f', 8);
+        const parts = [];
+        if (moneyFound > 0) parts.push(`+${moneyFound}₪`);
+        if (diamFound > 0) parts.push(`+${diamFound}💎`);
+        addFloatingText(h.x, h.y - 24, `💰 ${parts.join(' ')}`, '#ffd54f');
+        saveState();
+        updateHUD();
+      }
+      updateSegments(h.segments, h.x, h.y, 10);
+      continue;
+    }
 
     let target = null;
 
@@ -1802,29 +1853,32 @@ function updateHelpers() {
         h.x = HOME_BASE.x + Math.cos(h.angle) * (HOME_BASE.radius - 20);
         h.y = HOME_BASE.y + Math.sin(h.angle) * (HOME_BASE.radius - 20);
       }
-    } else if (h.type === 'collector') {
-      target = enemies.find((e) => e.level <= state.level && !e.isBoss);
     } else if (h.type === 'fighter') {
-      let minDist = fighterRange;
-      for (const e of enemies) {
-        const d = Math.hypot(e.x - player.x, e.y - player.y);
-        if (d < minDist) {
-          minDist = d;
-          target = e;
+      // נחש לוחם הולך אך ורק מאחורי השחקן, ונלחם רק באויבים קרובים כשאתה מחוץ למחילה!
+      const distPlayer = Math.hypot(player.x - h.x, player.y - h.y);
+      if (playerOutsideHome && distPlayer < 250) {
+        let minDist = fighterRange;
+        for (const e of enemies) {
+          const d = Math.hypot(e.x - player.x, e.y - player.y);
+          if (d < minDist) {
+            minDist = d;
+            target = e;
+          }
         }
       }
     }
 
     if (target) {
       const angle = Math.atan2(target.y - h.y, target.x - h.x);
-      h.x += Math.cos(angle) * h.speed;
-      h.y += Math.sin(angle) * h.speed;
+      const stepSpeed = h.type === 'fighter' ? Math.max(h.speed, pSpeed * 0.96) : h.speed;
+      h.x += Math.cos(angle) * stepSpeed;
+      h.y += Math.sin(angle) * stepSpeed;
 
       const d = Math.hypot(target.x - h.x, target.y - h.y);
       const cooldown = Math.max(12, 28 - (h.level - 1) * 3);
 
       // נחש לוחם משודרג (רמה 2+) יורה גם ארס/לייזר מרחוק!
-      if (h.type === 'fighter' && h.level >= 2 && d < 280 && d > target.radius + h.radius + 14 && h.attackTimer <= 0) {
+      if (h.type === 'fighter' && h.level >= 2 && d < 240 && d > target.radius + h.radius + 14 && h.attackTimer <= 0) {
         h.attackTimer = cooldown;
         const shotSpeed = h.level >= 3 ? 11.5 : 8.5;
         projectiles.push({
@@ -1841,15 +1895,22 @@ function updateHelpers() {
         const idx = enemies.indexOf(target);
         if (idx !== -1) {
           const dmg = 18 + state.level * 4 + (h.level - 1) * 14;
-          damageEnemy(idx, dmg, h.label, { byCollector: h.type === 'collector' });
+          damageEnemy(idx, dmg, h.label);
         }
       }
-    } else if (h.type !== 'guard') {
-      const dToPlayer = Math.hypot(player.x - h.x, player.y - h.y);
-      if (dToPlayer > 85) {
-        const angle = Math.atan2(player.y - h.y, player.x - h.x);
-        h.x += Math.cos(angle) * h.speed;
-        h.y += Math.sin(angle) * h.speed;
+    } else if (h.type === 'fighter') {
+      const idx = h.index || 0;
+      const backAng = player.angle + Math.PI + ((idx % 3) - 1) * 0.55;
+      const trailDist = 62 + Math.floor(idx / 3) * 32;
+      const followX = Math.max(60, Math.min(WORLD_WIDTH - 60, player.x + Math.cos(backAng) * trailDist));
+      const followY = Math.max(60, Math.min(WORLD_HEIGHT - 60, player.y + Math.sin(backAng) * trailDist));
+      const dToSlot = Math.hypot(followX - h.x, followY - h.y);
+      if (dToSlot > 8) {
+        const angle = Math.atan2(followY - h.y, followX - h.x);
+        const followSpeed = Math.max(h.speed, pSpeed * 0.96);
+        const step = Math.min(dToSlot, dToSlot > 180 ? followSpeed * 1.25 : followSpeed);
+        h.x += Math.cos(angle) * step;
+        h.y += Math.sin(angle) * step;
       }
     }
 
@@ -1894,6 +1955,13 @@ function updateEnemies(playerStats) {
       const distToPlayer = Math.hypot(player.x - en.x, player.y - en.y);
       const chaseRange = en.isBoss ? 1400 : (400 + Math.min(state.world * 10 + enDangerBonus * 16, 360));
 
+      if (en.isBoss && !en.enraged && en.hp <= en.maxHp * 0.5) {
+        en.enraged = true;
+        spawnParticles(en.x, en.y, '#ff1744', 24);
+        addFloatingText(en.x, en.y - 42, '🔥 מצב זעם!', '#ff5252');
+        showToast('🔥 הבוס נכנס למצב זעם! מהיר ותוקפני הרבה יותר!');
+      }
+
       if ((en.level > state.level || en.isBoss) && playerOutsideHome && distToPlayer < chaseRange) {
         // נחשים גדולים ובוסים רודפים אחרי השחקן, מסתערים ויורקים ארס (לפי רמת הסכנה של המין)
         if (en.dashCooldown > 0) en.dashCooldown--;
@@ -1914,21 +1982,38 @@ function updateEnemies(playerStats) {
         while (diff < -Math.PI) diff += Math.PI * 2;
         en.angle += diff * (en.isBoss ? 0.11 : 0.085);
         moveSpeed = en.dashTimer > 0 ? en.speed * 1.95 : (en.dashTelegraph > 0 ? en.speed * 0.45 : en.speed * 1.15);
+        if (en.enraged) moveSpeed *= 1.24;
 
-        // ירי ארס סגול מצד נחשים חזקים (ברמה קשה/מטורפת) ומצד הבוס תמיד!
-        if ((diffCfg.enemySpit || en.isBoss) && en.spitCooldown <= 0 && distToPlayer < 420) {
-          en.spitCooldown = Math.max(60, (en.isBoss ? 105 : diffCfg.spitCooldown) - enDangerBonus * 3) + Math.floor(Math.random() * 45);
+        // ירי ארס סגול מצד נחשים חזקים (ברמה קשה/מטורפת) ובוס היורה מניפת 3 כדורי ארס!
+        if ((diffCfg.enemySpit || en.isBoss) && en.spitCooldown <= 0 && distToPlayer < 450) {
+          const baseCd = en.isBoss
+            ? (en.enraged ? Math.max(48, 82 - enDangerBonus * 2) : 105)
+            : diffCfg.spitCooldown;
+          en.spitCooldown = Math.max(48, baseCd - enDangerBonus * 3) + Math.floor(Math.random() * 40);
           const aim = Math.atan2(player.y - en.y, player.x - en.x);
-          const sp = 6.2 * diffCfg.speedMult;
-          enemyProjectiles.push({
-            x: en.x + Math.cos(aim) * en.radius,
-            y: en.y + Math.sin(aim) * en.radius,
-            vx: Math.cos(aim) * sp,
-            vy: Math.sin(aim) * sp,
-            damage: Math.round((10 + en.level * 3) * diffCfg.dmgMult * enDangerMult * (en.isBoss ? 1.25 : 1)),
-            life: 68
-          });
+          const sp = (en.isBoss ? 6.8 : 6.2) * diffCfg.speedMult;
+          const offsets = en.isBoss ? [-0.22, 0, 0.22] : [0];
+          const spitDmg = Math.round((10 + en.level * 3) * diffCfg.dmgMult * enDangerMult * (en.isBoss ? 1.25 : 1));
+          for (const off of offsets) {
+            const shotAng = aim + off;
+            enemyProjectiles.push({
+              x: en.x + Math.cos(shotAng) * en.radius,
+              y: en.y + Math.sin(shotAng) * en.radius,
+              vx: Math.cos(shotAng) * sp,
+              vy: Math.sin(shotAng) * sp,
+              damage: spitDmg,
+              life: 72
+            });
+          }
         }
+      } else if (en.level === state.level && playerOutsideHome && distToPlayer < 260) {
+        // נחשים ברמתך לא מוותרים ונלחמים בך חזרה מקרוב!
+        const targetAngle = Math.atan2(player.y - en.y, player.x - en.x);
+        let diff = targetAngle - en.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        en.angle += diff * 0.08;
+        moveSpeed = en.speed * 1.05;
       } else if (en.level < state.level && distToPlayer < 220) {
         const fleeAngle = Math.atan2(en.y - player.y, en.x - player.x);
         let diff = fleeAngle - en.angle;
@@ -1977,7 +2062,7 @@ function updateEnemies(playerStats) {
           }
           // בוסים ונחשים באותה רמה/קטנים נושכים בחזרה בעוצמה לפי רמת הקושי והסכנה של המין
           if (en.hp > 0 && en.biteCooldown <= 0 && player.invulnerableTimer <= 0) {
-            en.biteCooldown = en.isBoss ? 28 : (en.level === state.level ? 32 : 48);
+            en.biteCooldown = en.isBoss ? 24 : (en.level === state.level ? 28 : 42);
             const rawRet = en.isBoss ? (16 + en.level * 4) : (en.level === state.level ? (10 + en.level * 3) : (4 + en.level));
             const retDangerMult = 1 + Math.max(0, ((en.style && en.style.danger) || 1) - 1) * 0.08;
             const retDmg = Math.round(rawRet * diffCfg.dmgMult * retDangerMult);
@@ -2572,7 +2657,7 @@ function draw() {
     ctx.textAlign = 'center';
     ctx.fillStyle = en.isBoss ? '#ffd600' : (isSmallerOrEqual ? '#b9f6ca' : '#ff8a80');
     const tag = en.isBoss
-      ? `👑 בוס ${en.style.name}! (רמה ${en.level})`
+      ? `${en.enraged ? '👑🔥 בוס זועם' : '👑 בוס'} ${en.style.name}! (רמה ${en.level})`
       : en.isBurglar
         ? `🦹 פורץ ${en.style.name}! (רמה ${en.level})`
         : isSmallerOrEqual
@@ -3613,7 +3698,7 @@ function renderRecords() {
   const summary = document.getElementById('recordsSummary');
   summary.innerHTML = `
     <div class="record-stat"><div class="rec-val">${records.bestScore}</div><div class="rec-lbl">🏆 שיא ניקוד</div></div>
-    <div class="record-stat"><div class="rec-val">${records.bestWorld}/150</div><div class="rec-lbl">🌍 עולם שיא</div></div>
+    <div class="record-stat"><div class="rec-val">${records.bestWorld}/200</div><div class="rec-lbl">🌍 עולם שיא</div></div>
     <div class="record-stat"><div class="rec-val">${records.bestLevel}</div><div class="rec-lbl">⭐ רמה שיא</div></div>
     <div class="record-stat"><div class="rec-val">${records.bestMoney} ₪</div><div class="rec-lbl">💵 שיא כסף</div></div>
     <div class="record-stat"><div class="rec-val">${records.bestDiamonds} 💎</div><div class="rec-lbl">💎 שיא יהלומים</div></div>
@@ -3798,7 +3883,7 @@ function renderShop() {
     },
     {
       title: `💰 נחש עוזר אוסף משאבים (יש לך: ${u.collectorSnakes})`,
-      desc: 'נחש שצד נחשים קטנים בשבילך ומביא כסף ויהלומים!',
+      desc: 'מסתובב בחופשיות בכל המפה ומביא כסף ויהלומים בלי לחסל נחשים!',
       costMoney: 8 + u.collectorSnakes * 8,
       costDiamonds: 0,
       action: () => {
@@ -3808,7 +3893,7 @@ function renderShop() {
     },
     {
       title: `⬆️💰 שדרוג נחשים אוספים (רמה ${u.collectorLevel || 1})`,
-      desc: 'מגדיל מהירות, כוח ומעניק +25% בונוס שלל מהאוספים!',
+      desc: 'מגדיל מהירות, תדירות חיפוש ובונוס שלל מהאוספים!',
       costMoney: 10 * (u.collectorLevel || 1),
       costDiamonds: 5 * (u.collectorLevel || 1),
       locked: u.collectorSnakes === 0,
@@ -3820,7 +3905,7 @@ function renderShop() {
     },
     {
       title: `⚔️ נחש עוזר לוחם (יש לך: ${u.fighterSnakes})`,
-      desc: 'נחש שנלחם לצידך ביחד מול נחשים אחרים!',
+      desc: 'הולך אך ורק מאחוריך ונלחם לצידך רק באויבים קרובים מחוץ למחילה!',
       costMoney: 10 + u.fighterSnakes * 10,
       costDiamonds: 5,
       action: () => {

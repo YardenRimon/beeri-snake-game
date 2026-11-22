@@ -2,8 +2,9 @@
 // עולם הנחשים של בארי - מנוע המשחק (מותאם למובייל ולמחשב)
 // ============================================================================
 
-const SAVE_KEY = 'beeri_snake_game_save_v2';
+const SAVE_KEY = 'beeri_snake_game_save_v3';
 const LEGACY_SAVE_KEY = 'beeri_snake_game_save_v1';
+const LEGACY_SAVE_KEY_V2 = 'beeri_snake_game_save_v2';
 const MAX_WORLDS = 200;
 
 // מיני נחשים אמיתיים לפי רמה (מהנחש הראשון תלום-קשקשים, דרך צפע מצוי וצפע החרמון, ועד לאנקונדה ברמה הסופית – לפי רמת סכנה ומראה אמיתיים!)
@@ -81,7 +82,8 @@ const QUEST_TEMPLATES = [
   { type: 'home_heal', title: 'התרפא בתוך המחילה שלך עד חיים מלאים 🌿', target: 1, rewardMoney: 10, rewardDiamonds: 6, timed: false, timeLimitSec: 0 }
 ];
 
-const RECORDS_KEY = 'beeri_snake_records_v1';
+const RECORDS_KEY = 'beeri_snake_records_v2';
+const LEGACY_RECORDS_KEY = 'beeri_snake_records_v1';
 
 // מצב התחלתי של השחקן (לפי האפיון: 10 שקלים ו-15 יהלומים)
 function getDefaultState() {
@@ -139,6 +141,7 @@ let records = loadRecords();
 
 function loadRecords() {
   try {
+    localStorage.removeItem(LEGACY_RECORDS_KEY);
     const raw = localStorage.getItem(RECORDS_KEY);
     if (!raw) return getDefaultRecords();
     const parsed = JSON.parse(raw);
@@ -193,8 +196,9 @@ let state = loadState();
 
 function loadState() {
   try {
-    // איפוס שמירה ישנה כדי שכל שחקן יתחיל מחדש מעולם 1 עם הנתונים ההתחלתיים
+    // איפוס שמירות ישנות כדי שכל השחקנים יתחילו מחדש מאפס (עולם 1, רמה 1, 10₪, 15💎)
     localStorage.removeItem(LEGACY_SAVE_KEY);
+    localStorage.removeItem(LEGACY_SAVE_KEY_V2);
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return getDefaultState();
     const parsed = JSON.parse(raw);
@@ -295,7 +299,7 @@ let worldEagle = null;
 function createWorldEagle() {
   return {
     phase: 'hidden', // 'hidden' | 'warning' | 'active' | 'leaving'
-    timer: 1500 + Math.floor(Math.random() * 1200),
+    timer: 2600 + Math.floor(Math.random() * 1400),
     x: -180,
     y: WORLD_HEIGHT / 2,
     angle: 0,
@@ -309,6 +313,17 @@ function createWorldEagle() {
     hitCooldown: 0,
     dodgeNotified: false
   };
+}
+
+function dismissWorldEagle() {
+  if (!worldEagle || worldEagle.phase === 'hidden' || worldEagle.phase === 'leaving') return;
+  worldEagle.phase = 'leaving';
+  worldEagle.spotted = false;
+  worldEagle.following = false;
+  worldEagle.swoopDuration = 0;
+  worldEagle.hitCooldown = 180;
+  worldEagle.timer = 140;
+  worldEagle.angle = worldEagle.x < WORLD_WIDTH / 2 ? Math.PI : 0;
 }
 
 let goldCannonCooldowns = [0, 15, 30, 45];
@@ -332,29 +347,38 @@ function createRareEgg(delaySec = 4, fixedX = null, fixedY = null) {
 let treasureChests = [];
 
 function createWorldChests() {
-  const rxMin = RIVER.x + RIVER.width + 210;
-  const rxSpan = WORLD_WIDTH - rxMin - 200;
-  const makeChest = (id, kind, x, y, money, diamonds) => ({
-    id,
-    kind,
-    x,
-    y,
-    origX: x,
-    origY: y,
-    money,
-    diamonds,
+  // מעט תיבות נדירות שמופיעות רק פעם בהרבה זמן ומוסתרות בפינות קטנות במפה
+  const roll = Math.random();
+  const count = roll < 0.18 ? 2 : (roll < 0.60 ? 1 : 0);
+  if (count === 0) return [];
+
+  const cornerPool = [
+    { id: 'c_tl', kind: 'fragile', x: 84 + Math.random() * 52, y: 84 + Math.random() * 52, money: 10, diamonds: 10 },
+    { id: 'c_bl', kind: 'fragile', x: 84 + Math.random() * 52, y: WORLD_HEIGHT - 136 + Math.random() * 52, money: 10, diamonds: 10 },
+    { id: 'c_rlt', kind: 'fragile', x: RIVER.x - 108 + Math.random() * 44, y: 84 + Math.random() * 46, money: 10, diamonds: 10 },
+    { id: 'c_tr', kind: 'instant', x: WORLD_WIDTH - 136 + Math.random() * 52, y: 84 + Math.random() * 52, money: 20, diamonds: 30 },
+    { id: 'c_br', kind: 'instant', x: WORLD_WIDTH - 136 + Math.random() * 52, y: WORLD_HEIGHT - 136 + Math.random() * 52, money: 20, diamonds: 30 },
+    { id: 'c_rrb', kind: 'fragile', x: RIVER.x + RIVER.width + 64 + Math.random() * 44, y: WORLD_HEIGHT - 136 + Math.random() * 52, money: 10, diamonds: 10 }
+  ];
+  for (let i = cornerPool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = cornerPool[i];
+    cornerPool[i] = cornerPool[j];
+    cornerPool[j] = tmp;
+  }
+
+  return cornerPool.slice(0, count).map((c) => ({
+    id: c.id,
+    kind: c.kind,
+    x: c.x,
+    y: c.y,
+    origX: c.x,
+    origY: c.y,
+    money: c.money,
+    diamonds: c.diamonds,
     collected: false,
     carried: false
-  });
-  return [
-    // 2 תיבות אוצר מעבר לנהר (+20₪ +30💎 כל אחת בפתיחה)
-    makeChest('instant_1', 'instant', rxMin + Math.random() * rxSpan, 240 + Math.random() * 500, 20, 30),
-    makeChest('instant_2', 'instant', rxMin + Math.random() * rxSpan, 1060 + Math.random() * 500, 20, 30),
-    // תיבת משלוח לפני הנהר (+10₪ +10💎 אם מביאים למחילה בלי להיפגע)
-    makeChest('fragile_before', 'fragile', HOME_BASE.x + HOME_BASE.radius + 170 + Math.random() * 260, 280 + Math.random() * (WORLD_HEIGHT - 560), 10, 10),
-    // תיבת משלוח זהה מעבר לנהר (+10₪ +10💎 אם מביאים למחילה בלי להיפגע)
-    makeChest('fragile_after', 'fragile', rxMin + 20 + Math.random() * Math.max(120, rxSpan - 40), 320 + Math.random() * (WORLD_HEIGHT - 640), 10, 10)
-  ];
+  }));
 }
 
 function breakCarriedFragileChests(silent = false) {
@@ -1407,6 +1431,7 @@ function sendPlayerHome(reason) {
   recordCompletedRun();
   SFX.hurt();
   comboStreak = 0;
+  dismissWorldEagle();
   if (bossSpawnedThisWorld) {
     for (const e of enemies) {
       if (e.isBoss && e.hp > 0) {
@@ -1533,11 +1558,11 @@ function update() {
     }
   }
 
-  // ספרינט מהיר עם מד אנרגיה (2 שניות זינוק מהיר ואז טעינה מחדש)
+  // ספרינט טורבו מהיר במיוחד עם מד אנרגיה (2 שניות זינוק מהיר ואז טעינה מחדש)
   if (player.sprintTimer > 0) {
     player.sprintTimer--;
     player.sprintEnergy = Math.max(0, (player.sprintTimer / 120) * 100);
-    if (Math.random() < 0.45) spawnParticles(player.x, player.y, '#40c4ff', 2);
+    if (Math.random() < 0.75) spawnParticles(player.x, player.y, '#40c4ff', 3);
   } else if (player.sprintEnergy < 100) {
     player.sprintEnergy = Math.min(100, player.sprintEnergy + 0.28);
   }
@@ -1546,8 +1571,10 @@ function update() {
   if (sprintFillEl) sprintFillEl.style.width = `${Math.round(player.sprintEnergy)}%`;
   if (sprintBtnEl) sprintBtnEl.classList.toggle('sprinting', player.sprintTimer > 0);
 
-  // תנועת השחקן: מהירות מלאה ואחידה גם בפניות, ללא הליכה הפוכה אחורה
-  const activeSpeed = player.sprintTimer > 0 ? stats.baseSpeed * 1.58 : stats.baseSpeed;
+  // תנועת השחקן: מהירות מלאה ואחידה גם בפניות, וספרינט ממש מהיר!
+  const activeSpeed = player.sprintTimer > 0
+    ? Math.min(18.5, stats.baseSpeed * 2.45 + 2.2)
+    : stats.baseSpeed;
   applyPlayerMovementInput(activeSpeed);
 
   let nextX = player.x + Math.cos(player.angle) * player.speed;
@@ -2306,8 +2333,11 @@ function updateWorldEagle(playerStats) {
     const spotRange = 760;
 
     if (playerInBurrow) {
-      worldEagle.spotted = false;
-      worldEagle.following = false;
+      if (worldEagle.spotted || worldEagle.following) {
+        dismissWorldEagle();
+        addFloatingText(HOME_BASE.x, HOME_BASE.y - 48, '🌿 התחמקת במחילה! הנשר עף הרחק', '#81d4fa');
+        return;
+      }
       if (distFromBurrow < HOME_BASE.radius + 140) {
         const awayAng = Math.atan2(worldEagle.y - HOME_BASE.y, worldEagle.x - HOME_BASE.x);
         let diff = awayAng - worldEagle.angle;
@@ -2364,16 +2394,11 @@ function updateWorldEagle(playerStats) {
 
       if (worldEagle.altitude < 0.70 && closeDist < playerStats.radius + 36) {
         if (player.jumpZ >= 8 || player.invulnerableTimer > 0) {
-          if (!worldEagle.dodgeNotified) {
-            worldEagle.dodgeNotified = true;
-            addFloatingText(player.x, player.y - 38, '🦅 התחמקת מהנשר!', '#81d4fa');
-          }
+          addFloatingText(player.x, player.y - 38, '🦅 התחמקת מהנשר! הוא עף הרחק!', '#81d4fa');
+          dismissWorldEagle();
+          return;
         } else {
-          worldEagle.hitCooldown = 110;
-          worldEagle.swoopDuration = 0;
-          worldEagle.spotted = false;
-          worldEagle.following = false;
-          worldEagle.altitude = 0.95;
+          dismissWorldEagle();
           spawnParticles(player.x, player.y, '#ff5252', 22);
           sendPlayerHome('הנשר תפס אותך ונפסלת!');
           return;
@@ -2386,27 +2411,22 @@ function updateWorldEagle(playerStats) {
 
     worldEagle.timer--;
     if (worldEagle.timer <= 0) {
-      worldEagle.phase = 'leaving';
-      worldEagle.swoopDuration = 0;
-      worldEagle.spotted = false;
-      worldEagle.following = false;
-      worldEagle.timer = 150;
-      worldEagle.angle = worldEagle.x < WORLD_WIDTH / 2 ? Math.PI : 0;
+      dismissWorldEagle();
     }
     return;
   }
 
   if (worldEagle.phase === 'leaving') {
-    worldEagle.altitude = Math.min(1.5, worldEagle.altitude + 0.018);
-    worldEagle.x += Math.cos(worldEagle.angle) * worldEagle.speed * 1.25;
-    worldEagle.y += Math.sin(worldEagle.angle) * worldEagle.speed * 1.25;
+    worldEagle.altitude = Math.min(1.6, worldEagle.altitude + 0.025);
+    worldEagle.x += Math.cos(worldEagle.angle) * worldEagle.speed * 1.65;
+    worldEagle.y += Math.sin(worldEagle.angle) * worldEagle.speed * 1.65;
     worldEagle.timer--;
     if (worldEagle.timer <= 0 || worldEagle.x < -120 || worldEagle.x > WORLD_WIDTH + 120) {
       worldEagle.phase = 'hidden';
       worldEagle.spotted = false;
       worldEagle.following = false;
-      // מופיע רק לעיתים רחוקות (~40 עד 65 שניות בין הופעות)
-      worldEagle.timer = 2400 + Math.floor(Math.random() * 1500);
+      // מופיע רק לעיתים רחוקות (~65 עד 100 שניות בין הופעות)
+      worldEagle.timer = 3900 + Math.floor(Math.random() * 2100);
     }
   }
 }
@@ -2802,13 +2822,14 @@ function draw() {
     ctx.fill();
   }
 
-  // ציור תיבות אוצר (מעבר לנהר) ותיבות משלוח ללא פגיעה (לפני ואחרי הנהר)
+  // ציור תיבות אוצר נדירות המוסתרות בפינות קטנות במפה
   for (const ch of treasureChests) {
     if (ch.collected) continue;
     const isFragile = ch.kind === 'fragile';
-    const bodyFill = isFragile ? '#1e88e5' : '#8d4e16';
-    const lidFill = isFragile ? '#42a5f5' : '#b26a22';
-    const trimColor = isFragile ? '#b3e5fc' : '#ffd600';
+    const nearChest = ch.carried || Math.hypot(player.x - ch.x, player.y - ch.y) < 190;
+    const bodyFill = isFragile ? '#1e88e5' : '#7a4414';
+    const lidFill = isFragile ? '#42a5f5' : '#9c5a1e';
+    const trimColor = isFragile ? '#90caf9' : '#e6b800';
     const claspColor = isFragile ? '#e1f5fe' : '#fff176';
     const labelColor = isFragile ? '#80d8ff' : '#ffe082';
     const labelText = isFragile
@@ -2818,22 +2839,24 @@ function draw() {
     ctx.save();
     ctx.translate(ch.x, ch.y);
     ctx.shadowColor = trimColor;
-    ctx.shadowBlur = ch.carried ? 14 : 9;
+    ctx.shadowBlur = ch.carried ? 12 : 0;
     ctx.fillStyle = bodyFill;
     ctx.strokeStyle = trimColor;
-    ctx.lineWidth = 2.5;
-    ctx.fillRect(-16, -11, 32, 22);
-    ctx.strokeRect(-16, -11, 32, 22);
+    ctx.lineWidth = 1.8;
+    ctx.fillRect(-11, -7.5, 22, 15);
+    ctx.strokeRect(-11, -7.5, 22, 15);
     ctx.fillStyle = lidFill;
-    ctx.fillRect(-17, -14, 34, 8);
-    ctx.strokeRect(-17, -14, 34, 8);
+    ctx.fillRect(-12, -10, 24, 6);
+    ctx.strokeRect(-12, -10, 24, 6);
     ctx.fillStyle = claspColor;
-    ctx.fillRect(-3.5, -8, 7, 7);
-    ctx.shadowBlur = 0;
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillStyle = labelColor;
-    ctx.textAlign = 'center';
-    ctx.fillText(labelText, 0, -21);
+    ctx.fillRect(-2.5, -5.5, 5, 5);
+    if (nearChest) {
+      ctx.shadowBlur = 0;
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillStyle = labelColor;
+      ctx.textAlign = 'center';
+      ctx.fillText(labelText, 0, -16);
+    }
     ctx.restore();
   }
 
@@ -3661,11 +3684,13 @@ function drawMinimap() {
     mctx.fill();
   }
 
-  // תיבות אוצר ותיבות משלוח על המיני-מפה
+  // תיבות נדירות בפינות (מופיעות במיני-מפה רק כשמתקרבים אליהן!)
   for (const ch of treasureChests) {
     if (ch.collected || ch.carried) continue;
-    mctx.fillStyle = ch.kind === 'fragile' ? '#40c4ff' : '#ffca28';
-    mctx.fillRect(ch.x * sx - 2, ch.y * sy - 2, 4, 4);
+    if (Math.hypot(player.x - ch.x, player.y - ch.y) < 220) {
+      mctx.fillStyle = ch.kind === 'fragile' ? '#40c4ff' : '#ffca28';
+      mctx.fillRect(ch.x * sx - 1.5, ch.y * sy - 1.5, 3, 3);
+    }
   }
 
   // נחשים אויבים ובוס

@@ -1805,7 +1805,7 @@ function updateProjectiles() {
 function updateHelpers() {
   const u = state.upgrades;
   const guardRange = HOME_BASE.radius + 220 + ((u.guardLevel || 1) - 1) * 80;
-  const fighterRange = 200 + Math.min((u.fighterLevel || 1) - 1) * 20, 70;
+  const fighterRange = 200 + Math.min(((u.fighterLevel || 1) - 1) * 20, 70);
   const playerOutsideHome = Math.hypot(player.x - HOME_BASE.x, player.y - HOME_BASE.y) > HOME_BASE.radius + 10;
   const pSpeed = getPlayerStats().baseSpeed;
 

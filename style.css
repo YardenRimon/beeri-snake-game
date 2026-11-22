@@ -657,7 +657,7 @@ body, html {
 /* התאמה ייעודית למסכי מובייל – תצוגה נקייה ורחבה בלי להסתיר את הזירה */
 @media (max-width: 768px) {
   .level-side-card {
-    top: 88px;
+    top: 112px;
     left: 6px;
     padding: 4px 6px;
     min-width: 108px;
@@ -681,6 +681,7 @@ body, html {
   }
 
   .minimap-canvas {
+    top: 112px;
     right: 6px;
     width: 76px;
     height: 52px;

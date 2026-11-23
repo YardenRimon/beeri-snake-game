@@ -1,9 +1,17 @@
 // ============================================================================
-// עולם הנחשים של טום גל ובארי - מנוע המשחק (מותאם למובייל ולמחשב)
+// עולם הנחשים של תום, גל ובארי (Tom, Gal & Beeri's Snake World) - מנוע המשחק
 // ============================================================================
 
-const GAME_TITLE = 'עולם הנחשים של טום גל ובארי';
+const GAME_TITLE = 'עולם הנחשים של תום, גל ובארי';
+const GAME_SHORT_TITLE = 'עולם הנחשים';
+const GAME_TITLE_EN = "Tom, Gal & Beeri's Snake World";
+const GAME_SHORT_TITLE_EN = 'TGB Snake World';
 document.title = GAME_TITLE;
+const titleDisplayEl = document.getElementById('gameTitleDisplay');
+if (titleDisplayEl) {
+  titleDisplayEl.textContent = `🐍 ${GAME_TITLE}`;
+  titleDisplayEl.title = `${GAME_TITLE} | ${GAME_TITLE_EN}`;
+}
 const SAVE_KEY = 'beeri_snake_game_save_v3';
 const LEGACY_SAVE_KEY = 'beeri_snake_game_save_v1';
 const LEGACY_SAVE_KEY_V2 = 'beeri_snake_game_save_v2';
@@ -25,7 +33,7 @@ const LEVEL_STYLES = [
   { name: 'קוברה מלכותית', shape: 'hexagon', primary: '#33691e', secondary: '#ffd600', glow: '#f4ff81', danger: 12, pattern: 'king_cobra' },
   { name: 'טאיפן פנים-יבשתי', shape: 'star', primary: '#ff8f00', secondary: '#263238', glow: '#ffd180', danger: 13, pattern: 'taipan' },
   { name: 'פיתון מרושת ענק', shape: 'ring', primary: '#00897b', secondary: '#ffb300', glow: '#a7ffeb', danger: 14, pattern: 'retic_python' },
-  { name: 'אנקונדה ענקית 👑', shape: 'ring', primary: '#1b5e20', secondary: '#2e7d32', glow: '#ffff8d', danger: 15, pattern: 'anaconda' }
+  { name: 'אנקונדה ענקית 👑', shape: 'ring', primary: '#4a5d23', secondary: '#3b4d1b', glow: '#d4e157', danger: 15, pattern: 'anaconda' }
 ];
 
 function getSnakeSpeciesStyle(level) {
@@ -111,6 +119,7 @@ function getDefaultState() {
       speedLevel: 1,
       hpLevel: 1,
       venomLevel: 1,
+      homeSizeLevel: 0,
       hasArtificialTeeth: false,
       hasArmorSuit: false,
       goldSuitLevel: 1,
@@ -256,10 +265,19 @@ const ctx = canvas.getContext('2d');
 const WORLD_WIDTH = 2600;
 const WORLD_HEIGHT = 1800;
 
+const HOME_BASE_INITIAL_RADIUS = 150;
+const HOME_BASE_EXPAND_STEP = 22;
+const MAX_HOME_EXPAND_LEVEL = 10;
+
 const HOME_BASE = {
   x: 400,
   y: WORLD_HEIGHT / 2,
-  radius: 150
+  get radius() {
+    const lvl = (typeof state !== 'undefined' && state && state.upgrades)
+      ? Math.min(MAX_HOME_EXPAND_LEVEL, Math.max(0, state.upgrades.homeSizeLevel || 0))
+      : 0;
+    return HOME_BASE_INITIAL_RADIUS + lvl * HOME_BASE_EXPAND_STEP;
+  }
 };
 
 // נהר שחוצה את המפה ועצים לידו שאפשר להפיל עם נשיכה או ארס
@@ -626,14 +644,19 @@ function getPlayerStats() {
   const laserDamage = 32 + (u.laserLevel - 1) * 18 + dangerBonus * 6;
   const goldCannonCount = u.hasArmorSuit ? Math.min(4, 1 + goldTier) : 0;
   const goldCannonDamage = 5 + Math.max(0, goldTier - 1) * 2;
-  const radius = 16 + Math.min(state.level * 2.2, 26);
-  const segCount = 12 + Math.min((state.level - 1) * 3, 28);
+  const isAnaconda = species.pattern === 'anaconda';
+  const radius = isAnaconda
+    ? 60 + Math.min(Math.max(0, state.level - 15) * 1.5, 16)
+    : 16 + Math.min(state.level * 2.2, 26);
+  const segCount = isAnaconda
+    ? 56 + Math.min(Math.max(0, state.level - 15) * 2, 16)
+    : 12 + Math.min((state.level - 1) * 3, 28);
   return {
-    maxHp,
+    maxHp: isAnaconda ? maxHp + 180 : maxHp,
     baseSpeed,
-    biteDamage,
-    tailWhipDamage,
-    tailWhipRange,
+    biteDamage: isAnaconda ? biteDamage + 45 : biteDamage,
+    tailWhipDamage: isAnaconda ? tailWhipDamage + 50 : tailWhipDamage,
+    tailWhipRange: isAnaconda ? tailWhipRange + 75 : tailWhipRange,
     venomDamage,
     laserDamage,
     goldCannonCount,
@@ -1604,15 +1627,19 @@ function update() {
   }
 
   // עדכון חוליות גוף הנחש
-  updateSegments(player.segments, player.x, player.y, stats.radius * 0.72);
+  const isAnacondaPlayer = getSnakeSpeciesStyle(state.level).pattern === 'anaconda';
+  updateSegments(player.segments, player.x, player.y, stats.radius * (isAnacondaPlayer ? 0.56 : 0.72));
 
   // כלל נחש קלאסי: התנגשות בזנב או בגוף של עצמך פוסלת מיד!
   if (player.speed > 0 && player.jumpZ < 6 && player.invulnerableTimer <= 0) {
-    for (let i = 4; i < player.segments.length; i++) {
+    const selfHitStartIdx = isAnacondaPlayer ? 7 : 4;
+    for (let i = selfHitStartIdx; i < player.segments.length; i++) {
       const seg = player.segments[i];
       const t = i / Math.max(1, player.segments.length - 1);
-      const segR = stats.radius * (1 - t * 0.42);
-      const hitFactor = i >= player.segments.length - 3 ? 0.85 : 0.75;
+      const segR = isAnacondaPlayer
+        ? stats.radius * (0.94 + Math.sin(Math.min(1, t * 1.15) * Math.PI) * 0.22 - Math.pow(t, 2.2) * 0.62)
+        : stats.radius * (1 - t * 0.42);
+      const hitFactor = isAnacondaPlayer ? 0.62 : (i >= player.segments.length - 3 ? 0.85 : 0.75);
       if (Math.hypot(seg.x - player.x, seg.y - player.y) < (stats.radius + segR) * hitFactor) {
         const selfReason = i >= player.segments.length - 3 ? 'התנגשת בזנב של עצמך!' : 'התנגשת בגוף של עצמך';
         sendPlayerHome(selfReason);
@@ -2549,20 +2576,22 @@ function draw() {
   }
 
   // ציור מחילת הבית הטבעית של השחקן + לייזר הגנה יחיד
+  const homeExpansionLvl = Math.min(MAX_HOME_EXPAND_LEVEL, Math.max(0, (state.upgrades && state.upgrades.homeSizeLevel) || 0));
+  const homeVisualScale = 1 + homeExpansionLvl * 0.085;
   ctx.save();
   ctx.beginPath();
   ctx.arc(HOME_BASE.x, HOME_BASE.y, HOME_BASE.radius, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(121, 85, 72, 0.22)';
+  ctx.fillStyle = 'rgba(121, 85, 72, 0.24)';
   ctx.fill();
-  ctx.lineWidth = 3.5;
-  ctx.strokeStyle = '#8d6e63';
+  ctx.lineWidth = 3.5 + homeExpansionLvl * 0.25;
+  ctx.strokeStyle = homeExpansionLvl >= MAX_HOME_EXPAND_LEVEL ? '#ffd600' : '#8d6e63';
   ctx.setLineDash([10, 8]);
   ctx.stroke();
   ctx.setLineDash([]);
 
   // תלולית אדמה טבעית ומסביבה אבנים וצמחייה של מחילת נחש בטבע
   ctx.beginPath();
-  ctx.ellipse(HOME_BASE.x, HOME_BASE.y + 4, 64, 46, 0, 0, Math.PI * 2);
+  ctx.ellipse(HOME_BASE.x, HOME_BASE.y + 4, 64 * homeVisualScale, 46 * homeVisualScale, 0, 0, Math.PI * 2);
   ctx.fillStyle = '#5d4037';
   ctx.fill();
   ctx.lineWidth = 3;
@@ -2580,18 +2609,18 @@ function draw() {
   ];
   for (const bd of burrowDecor) {
     ctx.beginPath();
-    ctx.arc(HOME_BASE.x + bd.dx, HOME_BASE.y + bd.dy, bd.r, 0, Math.PI * 2);
+    ctx.arc(HOME_BASE.x + bd.dx * homeVisualScale, HOME_BASE.y + bd.dy * homeVisualScale, bd.r * (1 + homeExpansionLvl * 0.05), 0, Math.PI * 2);
     ctx.fillStyle = bd.c;
     ctx.fill();
   }
 
   // פתח המחילה הכהה אל מתחת לאדמה
   ctx.beginPath();
-  ctx.ellipse(HOME_BASE.x, HOME_BASE.y + 8, 36, 23, 0, 0, Math.PI * 2);
+  ctx.ellipse(HOME_BASE.x, HOME_BASE.y + 8, 36 * homeVisualScale, 23 * homeVisualScale, 0, 0, Math.PI * 2);
   ctx.fillStyle = '#1b110d';
   ctx.fill();
   ctx.beginPath();
-  ctx.ellipse(HOME_BASE.x, HOME_BASE.y + 11, 24, 15, 0, 0, Math.PI * 2);
+  ctx.ellipse(HOME_BASE.x, HOME_BASE.y + 11, 24 * homeVisualScale, 15 * homeVisualScale, 0, 0, Math.PI * 2);
   ctx.fillStyle = '#070403';
   ctx.fill();
 
@@ -2628,7 +2657,10 @@ function draw() {
   ctx.font = 'bold 19px sans-serif';
   ctx.fillStyle = '#ffe0b2';
   ctx.textAlign = 'center';
-  ctx.fillText('🌿 מחילת הבית שלך (מוגן + לייזר הרחקה)', HOME_BASE.x, HOME_BASE.y - HOME_BASE.radius - 14);
+  const homeTitleLabel = homeExpansionLvl > 0
+    ? `🌿 מחילת הבית שלך (הרחבה ${homeExpansionLvl}/${MAX_HOME_EXPAND_LEVEL} + לייזר הרחקה)`
+    : '🌿 מחילת הבית שלך (מוגן + לייזר הרחקה)';
+  ctx.fillText(homeTitleLabel, HOME_BASE.x, HOME_BASE.y - HOME_BASE.radius - 14);
   ctx.restore();
 
   // ציור נחשים עוזרים
@@ -2927,6 +2959,15 @@ function drawSnakeSpeciesHeadPath(pattern, r, headAngle) {
   } else if (pattern === 'montpellier') {
     // ראש צר, חלק ומהיר של תלום-קשקשים
     ctx.ellipse(0, 0, r * 1.22, r * 0.86, 0, 0, Math.PI * 2);
+  } else if (pattern === 'anaconda') {
+    // ראש רחב, שרירי ומעוגל בחרטום של אנקונדה ירוקה אמיתית (Eunectes murinus)
+    ctx.moveTo(r * 1.28, 0);
+    ctx.quadraticCurveTo(r * 1.24, -r * 0.72, r * 0.35, -r * 0.94);
+    ctx.quadraticCurveTo(-r * 0.65, -r * 1.18, -r * 1.05, -r * 0.72);
+    ctx.quadraticCurveTo(-r * 1.25, 0, -r * 1.05, r * 0.72);
+    ctx.quadraticCurveTo(-r * 0.65, r * 1.18, r * 0.35, r * 0.94);
+    ctx.quadraticCurveTo(r * 1.24, r * 0.72, r * 1.28, 0);
+    ctx.closePath();
   } else {
     ctx.ellipse(0, 0, r * 1.1, r * 0.98, 0, 0, Math.PI * 2);
   }
@@ -2953,16 +2994,31 @@ function drawSnakePatternMark(pattern, i, r, segAngle, totalSegs) {
       ctx.stroke();
       ctx.restore();
     } else if (pattern === 'anaconda') {
+      // פסי הראש האמיתיים של אנקונדה ירוקה: פס כתום-אדמדם תחום בשחור מאחורי כל עין + נחיריים עליונים
       ctx.save();
       ctx.rotate(segAngle);
-      ctx.strokeStyle = '#ff9100';
-      ctx.lineWidth = Math.max(2, r * 0.16);
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.1, -r * 0.56);
-      ctx.lineTo(-r * 0.68, -r * 0.72);
-      ctx.moveTo(-r * 0.1, r * 0.56);
-      ctx.lineTo(-r * 0.68, r * 0.72);
-      ctx.stroke();
+      for (const side of [-1, 1]) {
+        ctx.strokeStyle = '#11170b';
+        ctx.lineWidth = Math.max(3.5, r * 0.24);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(r * 0.28, side * r * 0.42);
+        ctx.lineTo(-r * 0.85, side * r * 0.82);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#ff6d00';
+        ctx.lineWidth = Math.max(2, r * 0.13);
+        ctx.beginPath();
+        ctx.moveTo(r * 0.24, side * r * 0.41);
+        ctx.lineTo(-r * 0.80, side * r * 0.78);
+        ctx.stroke();
+
+        // נחיריים בקדמת החרטום
+        ctx.fillStyle = '#11170b';
+        ctx.beginPath();
+        ctx.arc(r * 0.96, side * r * 0.24, Math.max(2, r * 0.075), 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
     }
     return;
@@ -3082,14 +3138,43 @@ function drawSnakePatternMark(pattern, i, r, segAngle, totalSegs) {
     ctx.beginPath();
     ctx.arc(0, 0, r * 0.34, 0, Math.PI * 2);
     ctx.fill();
-  } else if (pattern === 'anaconda' && i < totalSegs - 1 && i % 2 === 1) {
-    ctx.fillStyle = '#0f1f11';
-    ctx.strokeStyle = '#ffd600';
-    ctx.lineWidth = 1.3;
+  } else if (pattern === 'anaconda' && i < totalSegs - 1) {
+    ctx.save();
+    ctx.rotate(segAngle);
+    // ברק תלת-ממדי של עור קשקשים לח ושרירי של אנקונדה
+    ctx.strokeStyle = 'rgba(220, 237, 200, 0.24)';
+    ctx.lineWidth = Math.max(2, r * 0.15);
     ctx.beginPath();
-    ctx.ellipse(0, 0, r * 0.56, r * 0.36, segAngle, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(-r * 0.55, -r * 0.22);
+    ctx.lineTo(r * 0.55, -r * 0.22);
     ctx.stroke();
+
+    // כתמי אוכף שחורים גדולים עגולים/אליפטיים לאורך הגב כמו אנקונדה ירוקה אמיתית
+    if (i % 2 === 1) {
+      ctx.fillStyle = '#141c0c';
+      ctx.strokeStyle = '#263318';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.ellipse(0, (i % 4 === 1 ? -1 : 1) * r * 0.08, r * 0.64, r * 0.44, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // טבעות צד שחורות עם מרכז צהוב-חרדל (אוקלי) לאורך צידי הגוף של האנקונדה
+    for (const side of [-1, 1]) {
+      if ((i + (side === 1 ? 1 : 0)) % 2 === 0) {
+        ctx.fillStyle = '#11170a';
+        ctx.beginPath();
+        ctx.ellipse(0, side * r * 0.72, r * 0.34, r * 0.21, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#d4a024';
+        ctx.beginPath();
+        ctx.ellipse(0, side * r * 0.70, r * 0.18, r * 0.10, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
   }
 }
 
@@ -3148,7 +3233,10 @@ function drawSnakeBody(segments, headRadius, shape, primaryColor, secondaryColor
   for (let i = segments.length - 1; i >= 0; i--) {
     const seg = segments[i];
     const t = i / Math.max(1, segments.length - 1);
-    const r = headRadius * (1 - t * 0.42);
+    // באנקונדה הגוף מתרחב במרכז ושרירי במיוחד לפני שהוא מתחדד בזנב, בדיוק כמו אנקונדה אמיתית!
+    const r = pattern === 'anaconda'
+      ? headRadius * (0.94 + Math.sin(Math.min(1, t * 1.15) * Math.PI) * 0.24 - Math.pow(t, 2.2) * 0.64)
+      : headRadius * (1 - t * 0.42);
     const segAngle = i > 0 ? Math.atan2(segments[i - 1].y - seg.y, segments[i - 1].x - seg.x) : headAngle;
 
     ctx.save();
@@ -3181,8 +3269,10 @@ function drawSnakeBody(segments, headRadius, shape, primaryColor, secondaryColor
       ctx.stroke();
       ctx.restore();
     } else if (pattern && i > 0) {
-      // גוף נחש חלק ואמיתי במקום צורות גאומטריות
-      ctx.ellipse(0, 0, r * 1.08, r * 0.92, segAngle, 0, Math.PI * 2);
+      // גוף נחש חלק ואמיתי במקום צורות גאומטריות (לאנקונדה גוף רחב, עבה ושרירי במיוחד)
+      const rx = pattern === 'anaconda' ? r * 1.16 : r * 1.08;
+      const ry = pattern === 'anaconda' ? r * 1.04 : r * 0.92;
+      ctx.ellipse(0, 0, rx, ry, segAngle, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     } else if (shape === 'diamond' && i > 0) {
@@ -3672,10 +3762,10 @@ function drawMinimap() {
     mctx.fillRect(b.x * sx - 1, b.y * sy - 2, Math.max(4, b.width * sx + 2), 4);
   }
 
-  // מחילת הבית
+  // מחילת הבית (גדלה במיני-מפה לפי רמת הרחבת הבית)
   mctx.fillStyle = '#66bb6a';
   mctx.beginPath();
-  mctx.arc(HOME_BASE.x * sx, HOME_BASE.y * sy, 4, 0, Math.PI * 2);
+  mctx.arc(HOME_BASE.x * sx, HOME_BASE.y * sy, Math.max(4, HOME_BASE.radius * sx), 0, Math.PI * 2);
   mctx.fill();
 
   // ביצת נחש נדירה
@@ -3817,6 +3907,16 @@ function renderShop() {
 
   const u = state.upgrades;
   const upgradesItems = [
+    {
+      title: `🏡 הרחבת מחילת הבית (${Math.min(MAX_HOME_EXPAND_LEVEL, u.homeSizeLevel || 0)}/${MAX_HOME_EXPAND_LEVEL})`,
+      desc: 'מגדיל את שטח מחילת הבית המוגן שלך (עד 10 פעמים!) כך שהבית תופס יותר מקום במפה ויהיה לך הרבה יותר קל ומהיר להגיע אליו!',
+      costMoney: 8 + (u.homeSizeLevel || 0) * 6,
+      costDiamonds: 4 + (u.homeSizeLevel || 0) * 3,
+      owned: (u.homeSizeLevel || 0) >= MAX_HOME_EXPAND_LEVEL,
+      action: () => {
+        u.homeSizeLevel = Math.min(MAX_HOME_EXPAND_LEVEL, (u.homeSizeLevel || 0) + 1);
+      }
+    },
     {
       title: `🦷 שדרוג עוצמת נשיכה (רמה ${u.biteLevel})`,
       desc: 'מחזק את הנשיכה שלך כדי לאכול נחשים מהר יותר.',

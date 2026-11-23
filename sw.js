@@ -1,4 +1,4 @@
-const CACHE_NAME = 'beeri-snake-pwa-v7';
+const CACHE_NAME = 'beeri-snake-pwa-v8';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -29,9 +29,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Network-first with offline cache fallback so phone updates immediately when online
+  // Network-first with HTTP revalidation so app title, manifest and game code always update cleanly
   event.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-cache' })
       .then((res) => {
         if (res && res.status === 200) {
           const copy = res.clone();

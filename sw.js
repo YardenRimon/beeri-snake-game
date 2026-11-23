@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tgb-snake-world-pwa-v10';
+const CACHE_NAME = 'tgb-snake-world-pwa-v11';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -11,7 +11,15 @@ const CORE_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      .then((cache) => Promise.all(
+        CORE_ASSETS.map((url) =>
+          fetch(url, { cache: 'reload' }).then((res) => {
+            if (res && res.status === 200) return cache.put(url, res);
+          })
+        )
+      ))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -29,9 +37,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Network-first with HTTP revalidation so app title, manifest and game code always update cleanly
+  // Network-first with cache: 'reload' to bypass browser HTTP cache and always serve latest update
   event.respondWith(
-    fetch(req, { cache: 'no-cache' })
+    fetch(req, { cache: 'reload' })
       .then((res) => {
         if (res && res.status === 200) {
           const copy = res.clone();
@@ -39,6 +47,6 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       })
-      .catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html')))
+      .catch(() => caches.match(req, { ignoreSearch: true }).then((cached) => cached || caches.match('./index.html')))
   );
 });

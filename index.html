@@ -3,21 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>עולם הנחשים של בארי 🐍</title>
-  <link rel="manifest" href="manifest.json" />
+  <title>עולם הנחשים של טום גל ובארי</title>
+  <link rel="manifest" href="manifest.json?v=8" />
   <meta name="theme-color" content="#111b14" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="נחשי בארי" />
+  <meta name="apple-mobile-web-app-title" content="עולם הנחשים של טום גל ובארי" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
-  <link rel="stylesheet" href="style.css?v=7" />
+  <link rel="stylesheet" href="style.css?v=8" />
 </head>
 <body>
   <!-- סרגל עליון (HUD) -->
   <header id="hud">
     <div class="hud-group">
+      <div class="stat-pill game-title-pill" id="gameTitleDisplay" title="שם המשחק הקבוע">עולם הנחשים של טום גל ובארי</div>
       <div class="stat-pill world-pill" id="worldDisplay" title="עולם נוכחי">
         🌍 עולם <span id="worldNum">1</span>/200 <span id="worldBiome"></span>
       </div>
@@ -255,8 +256,8 @@
         <h2>📲 הוסף את המשחק לדף הבית כאפליקציה</h2>
         <button id="closeInstallBtn" class="close-btn">✖</button>
       </div>
-      <img src="icon-192.png" alt="סמל עולם הנחשים של בארי" class="install-app-icon" />
-      <p class="install-lead">התקינו את <strong>"עולם הנחשים של בארי"</strong> עם סמל משלו על מסך הבית בטלפון — נפתח במסך מלא כמו אפליקציה אמיתית ועובד גם בלי אינטרנט!</p>
+      <img src="icon-192.png" alt="סמל עולם הנחשים של טום גל ובארי" class="install-app-icon" />
+      <p class="install-lead">התקינו את <strong>"עולם הנחשים של טום גל ובארי"</strong> עם סמל משלו על מסך הבית בטלפון — נפתח במסך מלא כמו אפליקציה אמיתית ועובד גם בלי אינטרנט!</p>
       <button id="pwaInstallActionBtn" class="buy-btn install-primary-btn" type="button">📲 התקן לדף הבית עכשיו</button>
       <div id="installInstructionsBox" class="install-steps-box">
         <div><strong>🤖 באנדרואיד (Chrome):</strong> לחצו על הכפתור הירוק למעלה, או על <strong>⋮</strong> (שלוש נקודות למעלה) ← <strong>"הוסף למסך הבית" / "התקן אפליקציה"</strong>.</div>
@@ -268,6 +269,6 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
-  <script src="game.js?v=7"></script>
+  <script src="game.js?v=8"></script>
 </body>
 </html>

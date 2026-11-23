@@ -1,4 +1,4 @@
-const CACHE_NAME = 'beeri-snake-pwa-v8';
+const CACHE_NAME = 'tgb-snake-world-pwa-v10';
 const CORE_ASSETS = [
   './',
   './index.html',

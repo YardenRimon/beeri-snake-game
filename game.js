@@ -16,29 +16,63 @@ const SAVE_KEY = 'beeri_snake_game_save_v3';
 const LEGACY_SAVE_KEY = 'beeri_snake_game_save_v1';
 const LEGACY_SAVE_KEY_V2 = 'beeri_snake_game_save_v2';
 const MAX_WORLDS = 200;
+const MAX_PLAYER_LEVEL = 100;
 
-// מיני נחשים אמיתיים לפי רמה (מהנחש הראשון תלום-קשקשים, דרך צפע מצוי וצפע החרמון, ועד לאנקונדה ברמה הסופית – לפי רמת סכנה ומראה אמיתיים!)
-const LEVEL_STYLES = [
-  { name: 'תלום-קשקשים', shape: 'circle', primary: '#558b2f', secondary: '#7cb342', glow: '#c5e1a5', danger: 1, pattern: 'montpellier' },
-  { name: 'צפע מצוי', shape: 'diamond', primary: '#b0937b', secondary: '#5d4037', glow: '#d7ccc8', danger: 2, pattern: 'viper' },
-  { name: 'צפע החרמון', shape: 'hexagon', primary: '#8d6e63', secondary: '#4e342e', glow: '#d7ccc8', danger: 3, pattern: 'hermon_viper' },
-  { name: 'אפעה מגוון', shape: 'triangle', primary: '#d84315', secondary: '#8d2b0b', glow: '#ffab91', danger: 4, pattern: 'sawscale' },
-  { name: 'עכן חרטומים', shape: 'triangle', primary: '#d4a373', secondary: '#9c6644', glow: '#faedcd', danger: 5, pattern: 'horned' },
-  { name: 'עכסן אימתני', shape: 'diamond', primary: '#c97b36', secondary: '#6d4c41', glow: '#ffcc80', danger: 6, pattern: 'rattle' },
-  { name: 'נחש אלמוגים', shape: 'ring', primary: '#e53935', secondary: '#fdd835', glow: '#ff8a80', danger: 7, pattern: 'coral' },
-  { name: 'פיתון מתכדר', shape: 'circle', primary: '#5d4037', secondary: '#ffb300', glow: '#ffe082', danger: 8, pattern: 'python' },
-  { name: 'קוברה מצרית', shape: 'triangle', primary: '#6d4c41', secondary: '#ffca28', glow: '#ffe57f', danger: 9, pattern: 'cobra' },
-  { name: 'ממבה ירוקה', shape: 'diamond', primary: '#00c853', secondary: '#00796b', glow: '#69f0ae', danger: 10, pattern: 'mamba' },
-  { name: 'ממבה שחורה', shape: 'star', primary: '#263238', secondary: '#607d8b', glow: '#cfd8dc', danger: 11, pattern: 'black_mamba' },
-  { name: 'קוברה מלכותית', shape: 'hexagon', primary: '#33691e', secondary: '#ffd600', glow: '#f4ff81', danger: 12, pattern: 'king_cobra' },
-  { name: 'טאיפן פנים-יבשתי', shape: 'star', primary: '#ff8f00', secondary: '#263238', glow: '#ffd180', danger: 13, pattern: 'taipan' },
-  { name: 'פיתון מרושת ענק', shape: 'ring', primary: '#00897b', secondary: '#ffb300', glow: '#a7ffeb', danger: 14, pattern: 'retic_python' },
-  { name: 'אנקונדה ענקית 👑', shape: 'ring', primary: '#4a5d23', secondary: '#3b4d1b', glow: '#d4e157', danger: 15, pattern: 'anaconda' }
+// 14 משפחות נחשים אמיתיות לרמות 1–99, וברמה 100 הסופית: אנקונדה ענקית 👑!
+const BASE_SPECIES_FAMILIES = [
+  { name: 'תלום-קשקשים', shape: 'circle', primary: '#558b2f', secondary: '#7cb342', glow: '#c5e1a5', pattern: 'montpellier' },
+  { name: 'צפע מצוי', shape: 'diamond', primary: '#b0937b', secondary: '#5d4037', glow: '#d7ccc8', pattern: 'viper' },
+  { name: 'צפע החרמון', shape: 'hexagon', primary: '#8d6e63', secondary: '#4e342e', glow: '#d7ccc8', pattern: 'hermon_viper' },
+  { name: 'אפעה מגוון', shape: 'triangle', primary: '#d84315', secondary: '#8d2b0b', glow: '#ffab91', pattern: 'sawscale' },
+  { name: 'עכן חרטומים', shape: 'triangle', primary: '#d4a373', secondary: '#9c6644', glow: '#faedcd', pattern: 'horned' },
+  { name: 'עכסן אימתני', shape: 'diamond', primary: '#c97b36', secondary: '#6d4c41', glow: '#ffcc80', pattern: 'rattle' },
+  { name: 'נחש אלמוגים', shape: 'ring', primary: '#e53935', secondary: '#fdd835', glow: '#ff8a80', pattern: 'coral' },
+  { name: 'פיתון מתכדר', shape: 'circle', primary: '#5d4037', secondary: '#ffb300', glow: '#ffe082', pattern: 'python' },
+  { name: 'קוברה מצרית', shape: 'triangle', primary: '#6d4c41', secondary: '#ffca28', glow: '#ffe57f', pattern: 'cobra' },
+  { name: 'ממבה ירוקה', shape: 'diamond', primary: '#00c853', secondary: '#00796b', glow: '#69f0ae', pattern: 'mamba' },
+  { name: 'ממבה שחורה', shape: 'star', primary: '#263238', secondary: '#607d8b', glow: '#cfd8dc', pattern: 'black_mamba' },
+  { name: 'קוברה מלכותית', shape: 'hexagon', primary: '#33691e', secondary: '#ffd600', glow: '#f4ff81', pattern: 'king_cobra' },
+  { name: 'טאיפן פנים-יבשתי', shape: 'star', primary: '#ff8f00', secondary: '#263238', glow: '#ffd180', pattern: 'taipan' },
+  { name: 'פיתון מרושת ענק', shape: 'ring', primary: '#00897b', secondary: '#ffb300', glow: '#a7ffeb', pattern: 'retic_python' }
 ];
 
+const SPECIES_TIER_RANKS = ['', 'לוחם', 'צייד', 'פראי', 'משוריין', 'מלכותי', 'אימתני', 'אגדי'];
+
+const ANACONDA_FINAL_STYLE = {
+  name: 'אנקונדה ענקית 👑',
+  shape: 'ring',
+  primary: '#4a5d23',
+  secondary: '#3b4d1b',
+  glow: '#d4e157',
+  danger: 15,
+  levelNum: 100,
+  pattern: 'anaconda'
+};
+
+// רשימת 100 הרמות (רמות 1 עד 99 מתפתחות בין 14 מיני הנחשים, ורמה 100 היא האנקונדה הענקית!)
+const LEVEL_STYLES = Array.from({ length: MAX_PLAYER_LEVEL }, (_, idx) => {
+  const lvl = idx + 1;
+  if (lvl >= MAX_PLAYER_LEVEL) return ANACONDA_FINAL_STYLE;
+  const famIdx = Math.min(BASE_SPECIES_FAMILIES.length - 1, Math.floor(((lvl - 1) / (MAX_PLAYER_LEVEL - 1)) * BASE_SPECIES_FAMILIES.length));
+  const fam = BASE_SPECIES_FAMILIES[famIdx];
+  const prevFamIdx = lvl > 1 ? Math.floor(((lvl - 2) / (MAX_PLAYER_LEVEL - 1)) * BASE_SPECIES_FAMILIES.length) : -1;
+  const startLvlOfFam = Math.ceil((famIdx * (MAX_PLAYER_LEVEL - 1)) / BASE_SPECIES_FAMILIES.length) + 1;
+  const subTier = Math.max(0, lvl - startLvlOfFam);
+  const rankTitle = SPECIES_TIER_RANKS[Math.min(subTier, SPECIES_TIER_RANKS.length - 1)];
+  const fullName = rankTitle ? `${fam.name} ${rankTitle}` : fam.name;
+  const dangerVal = 1 + ((lvl - 1) / (MAX_PLAYER_LEVEL - 1)) * 13.5;
+  return {
+    ...fam,
+    name: fullName,
+    danger: Number(dangerVal.toFixed(2)),
+    levelNum: lvl,
+    isNewFamily: famIdx !== prevFamIdx
+  };
+});
+
 function getSnakeSpeciesStyle(level) {
-  const idx = Math.min(Math.max(1, Math.floor(level || 1)) - 1, LEVEL_STYLES.length - 1);
-  return LEVEL_STYLES[idx];
+  const clamped = Math.min(Math.max(1, Math.floor(level || 1)), MAX_PLAYER_LEVEL);
+  return LEVEL_STYLES[clamped - 1];
 }
 
 // 10 סוגי סביבות טבע אמיתיות (יוצרות 150 עולמות ייחודיים מהטבע: עולם 1 יער, עולם 2 ארץ סלעים ואבנים, עולם 3 מדבר וכו')
@@ -635,28 +669,28 @@ function getPlayerStats() {
   const species = getSnakeSpeciesStyle(state.level);
   const dangerBonus = Math.max(0, (species.danger || 1) - 1);
   const goldTier = u.hasArmorSuit ? (u.goldSuitLevel || 1) : 0;
-  const maxHp = 100 + (u.hpLevel - 1) * 35 + dangerBonus * 18 + (u.hasArmorSuit ? 60 + (goldTier - 1) * 40 : 0);
+  const maxHp = 100 + (u.hpLevel - 1) * 35 + Math.round(dangerBonus * 18) + (u.hasArmorSuit ? 60 + (goldTier - 1) * 40 : 0);
   const baseSpeed = Math.min(10.0, 4.0 + (u.speedLevel - 1) * 0.45 + Math.min(dangerBonus * 0.08, 1.1));
-  const biteDamage = 25 + (u.biteLevel - 1) * 15 + dangerBonus * 7 + (u.hasArtificialTeeth ? 35 : 0);
-  const tailWhipDamage = 28 + ((u.tailWhipLevel || 1) - 1) * 18 + state.level * 5 + dangerBonus * 4;
-  const tailWhipRange = 16 + Math.min(state.level * 2.2, 26) + 95 + ((u.tailWhipLevel || 1) - 1) * 20;
-  const venomDamage = 22 + (u.venomLevel - 1) * 15 + dangerBonus * 6;
-  const laserDamage = 32 + (u.laserLevel - 1) * 18 + dangerBonus * 6;
+  const biteDamage = 25 + (u.biteLevel - 1) * 15 + Math.round(dangerBonus * 7) + (u.hasArtificialTeeth ? 35 : 0);
+  const tailWhipDamage = 28 + ((u.tailWhipLevel || 1) - 1) * 18 + Math.round(dangerBonus * 9);
+  const tailWhipRange = 16 + Math.min(dangerBonus * 2.1, 28) + 95 + ((u.tailWhipLevel || 1) - 1) * 20;
+  const venomDamage = 22 + (u.venomLevel - 1) * 15 + Math.round(dangerBonus * 6);
+  const laserDamage = 32 + (u.laserLevel - 1) * 18 + Math.round(dangerBonus * 6);
   const goldCannonCount = u.hasArmorSuit ? Math.min(4, 1 + goldTier) : 0;
   const goldCannonDamage = 5 + Math.max(0, goldTier - 1) * 2;
-  const isAnaconda = species.pattern === 'anaconda';
+  const isAnaconda = species.pattern === 'anaconda' || state.level >= MAX_PLAYER_LEVEL;
   const radius = isAnaconda
-    ? 60 + Math.min(Math.max(0, state.level - 15) * 1.5, 16)
-    : 16 + Math.min(state.level * 2.2, 26);
+    ? 62 + Math.min(Math.max(0, state.level - MAX_PLAYER_LEVEL) * 1.5, 16)
+    : 16 + Math.min(dangerBonus * 2.1, 27);
   const segCount = isAnaconda
-    ? 56 + Math.min(Math.max(0, state.level - 15) * 2, 16)
-    : 12 + Math.min((state.level - 1) * 3, 28);
+    ? 58 + Math.min(Math.max(0, state.level - MAX_PLAYER_LEVEL) * 2, 16)
+    : 12 + Math.min(Math.round(dangerBonus * 2.2), 30);
   return {
-    maxHp: isAnaconda ? maxHp + 180 : maxHp,
+    maxHp: isAnaconda ? maxHp + 220 : maxHp,
     baseSpeed,
-    biteDamage: isAnaconda ? biteDamage + 45 : biteDamage,
-    tailWhipDamage: isAnaconda ? tailWhipDamage + 50 : tailWhipDamage,
-    tailWhipRange: isAnaconda ? tailWhipRange + 75 : tailWhipRange,
+    biteDamage: isAnaconda ? biteDamage + 55 : biteDamage,
+    tailWhipDamage: isAnaconda ? tailWhipDamage + 60 : tailWhipDamage,
+    tailWhipRange: isAnaconda ? tailWhipRange + 85 : tailWhipRange,
     venomDamage,
     laserDamage,
     goldCannonCount,
@@ -798,12 +832,12 @@ function initWorld(worldNum) {
 
 function spawnWorldBoss() {
   const diffCfg = getDifficultyConfig();
-  const bossLevel = Math.max(state.level + 3, state.world + 2);
+  const bossLevel = Math.min(MAX_PLAYER_LEVEL, Math.max(state.level + 3, Math.round(state.world * 0.5) + 3));
   const bossX = player.x < RIVER.x ? (RIVER.x + RIVER.width + 320) : 680;
   const bossY = WORLD_HEIGHT / 2 + (Math.random() - 0.5) * 300;
   spawnEnemySnake(bossX, bossY, bossLevel, false, true);
   // 2 שומרי ראש חזקים המלווים את הבוס כדי שמעבר עולם יהיה מאתגר באמת!
-  const guardLevel = state.level + 1;
+  const guardLevel = Math.min(MAX_PLAYER_LEVEL, state.level + 1);
   spawnEnemySnake(bossX, Math.max(180, bossY - 120), guardLevel, false, false);
   spawnEnemySnake(bossX, Math.min(WORLD_HEIGHT - 180, bossY + 120), guardLevel, false, false);
   showToast(`👑 בוס סוף עולם ${state.world} הגיע עם 2 שומרי ראש! הבס את כולם כדי לעבור עולם (${diffCfg.label})!`);
@@ -814,11 +848,11 @@ function spawnEnemySnake(x, y, level, isBurglar = false, isBoss = false) {
   const style = getSnakeSpeciesStyle(level);
   const dangerBonus = Math.max(0, (style.danger || 1) - 1);
   const dangerHpMult = 1 + dangerBonus * 0.09;
-  const radius = 13 + Math.min(level * 2.1, 25) + (isBoss ? 10 : 0);
+  const radius = 13 + Math.min(dangerBonus * 1.9, 25) + (isBoss ? 10 : 0);
   const maxHp = isBoss
-    ? Math.round((340 + level * 70 + (state.world - 1) * 85) * diffCfg.hpMult * dangerHpMult)
-    : Math.round((70 + level * 36 + (state.world - 1) * 26) * diffCfg.hpMult * dangerHpMult);
-  const segCount = 6 + Math.min(level * 2, 16) + (isBoss ? 6 : 0);
+    ? Math.round((340 + dangerBonus * 90 + (state.world - 1) * 85) * diffCfg.hpMult * dangerHpMult)
+    : Math.round((70 + dangerBonus * 45 + (state.world - 1) * 26) * diffCfg.hpMult * dangerHpMult);
+  const segCount = 6 + Math.min(Math.round(dangerBonus * 1.5), 16) + (isBoss ? 6 : 0);
   const segs = [];
   for (let i = 0; i < segCount; i++) {
     segs.push({ x: x - i * 10, y });
@@ -828,7 +862,7 @@ function spawnEnemySnake(x, y, level, isBurglar = false, isBoss = false) {
     ? (2.6 + Math.min(state.world * 0.05, 1.0))
     : isBoss
       ? (2.45 + Math.min(state.world * 0.09, 1.65) + speedDanger * 0.55)
-      : (2.08 + Math.min(level * 0.15 + (state.world - 1) * 0.08, 2.3) + speedDanger);
+      : (2.08 + Math.min(dangerBonus * 0.16 + (state.world - 1) * 0.08, 2.3) + speedDanger);
   enemies.push({
     x,
     y,
@@ -1377,7 +1411,7 @@ function eatEnemy(enemyIndex, options = {}) {
   if (en.isBoss) state.bossesDefeated = (state.bossesDefeated || 0) + 1;
   state.score = (state.score || 0) + (en.isBoss ? 250 : 25 * en.level);
 
-  // בונוס רצף ציד: כל 3 נחשים בלי להיפסל/למות = +20₪ ו-+20💎!
+  // בונוס רצף ציד: כל 3 נחשים בלי להיפסל/למות = +20₪ ו-+20💎 + התקדמות ברמת הנחש (בדרך ל-100 רמות והאנקונדה הענקית)!
   comboStreak++;
   if (comboStreak >= 3) {
     comboStreak = 0;
@@ -1386,10 +1420,15 @@ function eatEnemy(enemyIndex, options = {}) {
     SFX.victory();
     spawnParticles(player.x, player.y, '#00e5ff', 28);
     addFloatingText(player.x, player.y - 48, '🔥 רצף 3! +20₪ +20💎', '#ffd600');
-    showToast('🔥 רצף ציד של 3 נחשים בלי למות! קיבלת בונוס +20₪ ו-+20💎!');
+    advancePlayerLevelProgress(1, 'רצף ציד של 3 נחשים');
+    showToast('🔥 רצף ציד של 3 נחשים בלי למות! קיבלת בונוס +20₪, +20💎 והתקדמות ברמה!');
   } else {
     if (en.isBoss) SFX.victory();
     else SFX.eat();
+  }
+
+  if (en.isBoss) {
+    advancePlayerLevelProgress(2, 'הבסת בוס סוף עולם');
   }
 
   records.totalSnakesEaten = (records.totalSnakesEaten || 0) + 1;
@@ -1406,6 +1445,44 @@ function eatEnemy(enemyIndex, options = {}) {
   checkWorldProgress();
 }
 
+function advancePlayerLevelProgress(steps = 1, sourceText = '') {
+  if (state.level >= MAX_PLAYER_LEVEL) {
+    state.level = MAX_PLAYER_LEVEL;
+    state.levelProgress = 3;
+    return;
+  }
+  state.levelProgress = (state.levelProgress || 0) + steps;
+  let leveledUp = false;
+  while (state.levelProgress >= 3 && state.level < MAX_PLAYER_LEVEL) {
+    state.levelProgress -= 3;
+    state.level = Math.min(MAX_PLAYER_LEVEL, state.level + 1);
+    leveledUp = true;
+  }
+  if (state.level >= MAX_PLAYER_LEVEL) {
+    state.levelProgress = 3;
+  }
+  if (leveledUp) {
+    const newStyle = getSnakeSpeciesStyle(state.level);
+    const stats = getPlayerStats();
+    player.maxHp = stats.maxHp;
+    player.hp = player.maxHp;
+    while (player.segments.length < stats.segCount) {
+      const tail = player.segments[player.segments.length - 1] || player;
+      const prev = player.segments[player.segments.length - 2] || tail;
+      const ang = Math.atan2(tail.y - prev.y, tail.x - prev.x);
+      player.segments.push({ x: tail.x + Math.cos(ang) * 12, y: tail.y + Math.sin(ang) * 12 });
+    }
+    updatePersonalRecords();
+    SFX.victory();
+    if (state.level >= MAX_PLAYER_LEVEL) {
+      showToast(`👑🐍 הגעת לרמה ${MAX_PLAYER_LEVEL} האחרונה! הפכת ל-${newStyle.name} העצומה!`);
+    } else {
+      showToast(`🎉 עלית לרמה ${state.level}/${MAX_PLAYER_LEVEL}${sourceText ? ` (${sourceText})` : ''}! הנחש שלך: ${newStyle.name}!`);
+    }
+    spawnParticles(player.x, player.y, newStyle.primary, 35);
+  }
+}
+
 function checkWorldProgress() {
   const remainingRegular = enemies.filter((e) => !e.isBurglar);
   if (remainingRegular.length > 0) return;
@@ -1418,27 +1495,9 @@ function checkWorldProgress() {
     return;
   }
 
-  // ניקוי עולם + עליית רמה כל 3 עולמות!
+  // ניקוי עולם + עליית רמה!
   enemies = [];
-  state.levelProgress = (state.levelProgress || 0) + 1;
-  if (state.levelProgress >= 3) {
-    state.levelProgress = 0;
-    state.level += 1;
-    const newStyle = getSnakeSpeciesStyle(state.level);
-    const stats = getPlayerStats();
-    player.maxHp = stats.maxHp;
-    player.hp = player.maxHp;
-    while (player.segments.length < stats.segCount) {
-      const tail = player.segments[player.segments.length - 1];
-      const prev = player.segments[player.segments.length - 2] || tail;
-      const ang = Math.atan2(tail.y - prev.y, tail.x - prev.x);
-      player.segments.push({ x: tail.x + Math.cos(ang) * 12, y: tail.y + Math.sin(ang) * 12 });
-    }
-    updatePersonalRecords();
-    SFX.victory();
-    showToast(`🎉 השלמת 3 עולמות ועלית לרמה ${state.level}! הנחש השתנה ל-${newStyle.name}!`);
-    spawnParticles(player.x, player.y, newStyle.primary, 35);
-  }
+  advancePlayerLevelProgress(1, 'סיום עולם');
   saveState();
 
   if (state.world < MAX_WORLDS) {
@@ -1906,8 +1965,10 @@ function updateHelpers() {
       target = enemies.find((e) => e.isBurglar || Math.hypot(e.x - HOME_BASE.x, e.y - HOME_BASE.y) < guardRange);
       if (!target) {
         h.angle += 0.03 + (h.level - 1) * 0.006;
-        h.x = HOME_BASE.x + Math.cos(h.angle) * (HOME_BASE.radius - 20);
-        h.y = HOME_BASE.y + Math.sin(h.angle) * (HOME_BASE.radius - 20);
+        // השומרים מסיירים רק על שפת הקצוות החיצוניים של המחילה!
+        const guardEdgeRadius = HOME_BASE.radius - 13;
+        h.x = HOME_BASE.x + Math.cos(h.angle) * guardEdgeRadius;
+        h.y = HOME_BASE.y + Math.sin(h.angle) * guardEdgeRadius;
       }
     } else if (h.type === 'fighter') {
       // נחש לוחם הולך אך ורק מאחורי השחקן, ונלחם רק באויבים קרובים כשאתה מחוץ למחילה!
@@ -1988,9 +2049,11 @@ function updateEnemies(playerStats) {
 
     if (en.repelTimer > 0) {
       en.repelTimer--;
+      en.dashTelegraph = 0;
+      en.dashTimer = 0;
       const awayAng = Math.atan2(en.y - HOME_BASE.y, en.x - HOME_BASE.x);
       en.angle = awayAng;
-      moveSpeed = en.speed * 1.25;
+      moveSpeed = en.speed * 1.45;
     } else if (en.isBurglar) {
       en.angle = Math.atan2(HOME_BASE.y - en.y, HOME_BASE.x - en.x);
       if (Math.hypot(en.x - HOME_BASE.x, en.y - HOME_BASE.y) < HOME_BASE.radius - 20) {
@@ -2091,15 +2154,25 @@ function updateEnemies(playerStats) {
 
     if (nx < 80 || nx > WORLD_WIDTH - 80) en.angle = Math.PI - en.angle;
     if (ny < 80 || ny > WORLD_HEIGHT - 80) en.angle = -en.angle;
-    if (!en.isBurglar && Math.hypot(nx - HOME_BASE.x, ny - HOME_BASE.y) < HOME_BASE.radius + 35) {
-      en.angle += Math.PI;
-    }
-    if (!en.isBoss && nx > RIVER.x - 20 && nx < RIVER.x + RIVER.width + 20) {
-      en.angle = Math.PI - en.angle;
-    }
 
-    en.x += Math.cos(en.angle) * moveSpeed;
-    en.y += Math.sin(en.angle) * moveSpeed;
+    // חגורת הגנת הלייזר של המחילה: נחשים רגילים ובוסים לא יכולים לפלוש לתוך שטח הבית המוגן ונהדפים החוצה!
+    const minHomeKeepOut = en.isBurglar ? 0 : (HOME_BASE.radius + en.radius + 32);
+    const nextDistToHome = Math.hypot(nx - HOME_BASE.x, ny - HOME_BASE.y);
+    if (!en.isBurglar && nextDistToHome < minHomeKeepOut) {
+      const awayFromHome = Math.atan2(en.y - HOME_BASE.y, en.x - HOME_BASE.x);
+      en.angle = awayFromHome;
+      en.dashTelegraph = 0;
+      en.dashTimer = 0;
+      en.repelTimer = Math.max(en.repelTimer || 0, 26);
+      en.x = HOME_BASE.x + Math.cos(awayFromHome) * (minHomeKeepOut + 6);
+      en.y = HOME_BASE.y + Math.sin(awayFromHome) * (minHomeKeepOut + 6);
+    } else {
+      if (!en.isBoss && nx > RIVER.x - 20 && nx < RIVER.x + RIVER.width + 20) {
+        en.angle = Math.PI - en.angle;
+      }
+      en.x += Math.cos(en.angle) * moveSpeed;
+      en.y += Math.sin(en.angle) * moveSpeed;
+    }
     updateSegments(en.segments, en.x, en.y, en.radius * 0.7);
 
     if (player.jumpZ < 8) {
@@ -2264,9 +2337,9 @@ function updateGoldSuitCannons(stats) {
   }
 }
 
-// לייזר הגנה קטן יחיד המקיף את מחילת הבית: נזק קל בלבד והרחקת אויבים מהמחילה
+// לייזר הגנה המקיף את מחילת הבית: פועל בעקביות, יורה בכל נחש שמתקרב לבית ומרחיק אותו מיד אחורה!
 function updateBurrowLaser() {
-  burrowLaser.angle = (burrowLaser.angle + 0.022) % (Math.PI * 2);
+  burrowLaser.angle = (burrowLaser.angle + 0.032) % (Math.PI * 2);
   burrowLaser.x = HOME_BASE.x + Math.cos(burrowLaser.angle) * (HOME_BASE.radius + 4);
   burrowLaser.y = HOME_BASE.y + Math.sin(burrowLaser.angle) * (HOME_BASE.radius + 4);
   if (burrowLaser.cooldown > 0) burrowLaser.cooldown--;
@@ -2274,10 +2347,11 @@ function updateBurrowLaser() {
   if (burrowLaser.cooldown > 0) return;
 
   let targetIdx = -1;
-  let closestDist = HOME_BASE.radius + 195;
+  const laserDefenseRange = HOME_BASE.radius + 250;
+  let closestDist = laserDefenseRange;
   for (let i = 0; i < enemies.length; i++) {
     const en = enemies[i];
-    const distToBurrow = Math.hypot(en.x - HOME_BASE.x, en.y - HOME_BASE.y);
+    const distToBurrow = Math.hypot(en.x - HOME_BASE.x, en.y - HOME_BASE.y) - (en.radius || 0);
     if (distToBurrow < closestDist) {
       closestDist = distToBurrow;
       targetIdx = i;
@@ -2286,26 +2360,44 @@ function updateBurrowLaser() {
   if (targetIdx === -1) return;
 
   const en = enemies[targetIdx];
-  burrowLaser.cooldown = 44;
+  burrowLaser.angle = Math.atan2(en.y - HOME_BASE.y, en.x - HOME_BASE.x);
+  burrowLaser.x = HOME_BASE.x + Math.cos(burrowLaser.angle) * (HOME_BASE.radius + 4);
+  burrowLaser.y = HOME_BASE.y + Math.sin(burrowLaser.angle) * (HOME_BASE.radius + 4);
+  burrowLaser.cooldown = 16;
   burrowLaser.beamTimer = 14;
   burrowLaser.targetX = en.x;
   burrowLaser.targetY = en.y;
 
-  const mildDmg = 4;
-  en.hp -= mildDmg;
+  // הדף והרחקה מיידית של כל נחש בטווח הלייזר (ופגיעה חזקה במיוחד בפורצים כדי שלא יחצו את הלייזר!)
   SFX.burrowZap();
-  const pushAng = Math.atan2(en.y - HOME_BASE.y, en.x - HOME_BASE.x);
-  en.x = Math.max(80, Math.min(WORLD_WIDTH - 80, en.x + Math.cos(pushAng) * 28));
-  en.y = Math.max(80, Math.min(WORLD_HEIGHT - 80, en.y + Math.sin(pushAng) * 28));
-  en.angle = pushAng;
-  en.repelTimer = 38;
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const other = enemies[i];
+    const d = Math.hypot(other.x - HOME_BASE.x, other.y - HOME_BASE.y) - (other.radius || 0);
+    if (d >= laserDefenseRange) continue;
 
-  spawnParticles(en.x, en.y, '#80d8ff', 4);
-  if (Math.random() < 0.45) {
-    addFloatingText(en.x, en.y - 22, `⚡ -${mildDmg} הרחקה`, '#80d8ff');
-  }
-  if (en.hp <= 0) {
-    eatEnemy(targetIdx);
+    const isPrimary = (i === targetIdx);
+    const hitDmg = other.isBurglar ? 24 : (isPrimary ? 8 : 5);
+    other.hp -= hitDmg;
+    other.dashTelegraph = 0;
+    other.dashTimer = 0;
+
+    const pushAng = Math.atan2(other.y - HOME_BASE.y, other.x - HOME_BASE.x);
+    const pushDist = other.isBurglar ? 82 : (isPrimary ? 72 : 52);
+    const safeMinRadius = HOME_BASE.radius + (other.radius || 16) + 38;
+    const newDist = Math.max(safeMinRadius, Math.hypot(other.x - HOME_BASE.x, other.y - HOME_BASE.y) + pushDist);
+    other.x = Math.max(80, Math.min(WORLD_WIDTH - 80, HOME_BASE.x + Math.cos(pushAng) * newDist));
+    other.y = Math.max(80, Math.min(WORLD_HEIGHT - 80, HOME_BASE.y + Math.sin(pushAng) * newDist));
+    other.angle = pushAng;
+    other.repelTimer = Math.max(other.repelTimer || 0, 52);
+    updateSegments(other.segments, other.x, other.y, other.radius * 0.7);
+
+    spawnParticles(other.x, other.y, '#80d8ff', isPrimary ? 7 : 4);
+    if (isPrimary) {
+      addFloatingText(other.x, other.y - 22, `⚡ לייזר הגנה! -${hitDmg}`, '#80d8ff');
+    }
+    if (other.hp <= 0) {
+      eatEnemy(i);
+    }
   }
 }
 
@@ -2575,73 +2667,131 @@ function draw() {
     ctx.restore();
   }
 
-  // ציור מחילת הבית הטבעית של השחקן + לייזר הגנה יחיד
+  // ציור מחילת הבית השלמה: כל הבית הוא מחילה עמוקה עם מדרגות/מגלשות היקפיות בכל הקצוות, ושביל שומרים בקצה החיצוני!
   const homeExpansionLvl = Math.min(MAX_HOME_EXPAND_LEVEL, Math.max(0, (state.upgrades && state.upgrades.homeSizeLevel) || 0));
-  const homeVisualScale = 1 + homeExpansionLvl * 0.085;
+  const homeR = HOME_BASE.radius;
+  const guardRimWidth = 26;
+  const pitOuterR = Math.max(60, homeR - guardRimWidth);
+  const pitBottomR = Math.max(24, pitOuterR * 0.36);
+
   ctx.save();
+
+  // 1. שפת הקצוות החיצונית (האזור המוגבה שבו אין בור ושם הנחשים השומרים מסיירים ומגנים!)
+  const rimGrad = ctx.createRadialGradient(HOME_BASE.x, HOME_BASE.y, pitOuterR, HOME_BASE.x, HOME_BASE.y, homeR);
+  rimGrad.addColorStop(0, '#4e342e');
+  rimGrad.addColorStop(0.55, '#6d4c41');
+  rimGrad.addColorStop(1, 'rgba(93, 64, 55, 0.85)');
   ctx.beginPath();
-  ctx.arc(HOME_BASE.x, HOME_BASE.y, HOME_BASE.radius, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(121, 85, 72, 0.24)';
+  ctx.arc(HOME_BASE.x, HOME_BASE.y, homeR, 0, Math.PI * 2);
+  ctx.fillStyle = rimGrad;
   ctx.fill();
-  ctx.lineWidth = 3.5 + homeExpansionLvl * 0.25;
-  ctx.strokeStyle = homeExpansionLvl >= MAX_HOME_EXPAND_LEVEL ? '#ffd600' : '#8d6e63';
-  ctx.setLineDash([10, 8]);
+  ctx.lineWidth = 4 + homeExpansionLvl * 0.25;
+  ctx.strokeStyle = homeExpansionLvl >= MAX_HOME_EXPAND_LEVEL ? '#ffd600' : '#a1887f';
+  ctx.stroke();
+
+  // מסלול סיור השומרים בקצוות החיצוניים של הבית
+  ctx.beginPath();
+  ctx.arc(HOME_BASE.x, HOME_BASE.y, homeR - guardRimWidth * 0.5, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255, 224, 130, 0.28)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 8]);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // תלולית אדמה טבעית ומסביבה אבנים וצמחייה של מחילת נחש בטבע
-  ctx.beginPath();
-  ctx.ellipse(HOME_BASE.x, HOME_BASE.y + 4, 64 * homeVisualScale, 46 * homeVisualScale, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#5d4037';
-  ctx.fill();
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#3e2723';
-  ctx.stroke();
-
-  const burrowDecor = [
-    { dx: -44, dy: 14, r: 9, c: '#78909c' },
-    { dx: -28, dy: 29, r: 7, c: '#8d6e63' },
-    { dx: 44, dy: 15, r: 10, c: '#78909c' },
-    { dx: 34, dy: -22, r: 7, c: '#66bb6a' },
-    { dx: -39, dy: -19, r: 8, c: '#4caf50' },
-    { dx: 18, dy: 32, r: 8, c: '#90a4ae' },
-    { dx: 0, dy: -31, r: 7, c: '#558b2f' }
-  ];
-  for (const bd of burrowDecor) {
+  // אבנים וצמחיית שפה רק בקצוות החיצוניים של המחילה
+  const rimStoneCount = 16;
+  for (let s = 0; s < rimStoneCount; s++) {
+    const ang = (s / rimStoneCount) * Math.PI * 2;
+    const sr = homeR - 6;
+    const sx = HOME_BASE.x + Math.cos(ang) * sr;
+    const sy = HOME_BASE.y + Math.sin(ang) * sr;
     ctx.beginPath();
-    ctx.arc(HOME_BASE.x + bd.dx * homeVisualScale, HOME_BASE.y + bd.dy * homeVisualScale, bd.r * (1 + homeExpansionLvl * 0.05), 0, Math.PI * 2);
-    ctx.fillStyle = bd.c;
+    ctx.arc(sx, sy, s % 2 === 0 ? 5.5 : 4, 0, Math.PI * 2);
+    ctx.fillStyle = s % 3 === 0 ? '#558b2f' : (s % 2 === 0 ? '#78909c' : '#8d6e63');
     ctx.fill();
   }
 
-  // פתח המחילה הכהה אל מתחת לאדמה
-  ctx.beginPath();
-  ctx.ellipse(HOME_BASE.x, HOME_BASE.y + 8, 36 * homeVisualScale, 23 * homeVisualScale, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#1b110d';
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(HOME_BASE.x, HOME_BASE.y + 11, 24 * homeVisualScale, 15 * homeVisualScale, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#070403';
-  ctx.fill();
+  // 2. טבעות מדרגות היקפיות שיורדות אל תוך המחילה מכל הקצוות עד למטה
+  const stairSteps = 6;
+  const stepColors = ['#5d4037', '#4e342e', '#3e2723', '#311e1a', '#241512', '#170d0b'];
+  for (let st = 0; st < stairSteps; st++) {
+    const frac = st / stairSteps;
+    const stepR = pitOuterR - (pitOuterR - pitBottomR) * frac;
+    ctx.beginPath();
+    // הסטה קלה למטה בכל מדרגה ליצירת תחושת עומק תלת-ממדית אמיתית של ירידה למחילה
+    ctx.arc(HOME_BASE.x, HOME_BASE.y + st * 1.4, stepR, 0, Math.PI * 2);
+    ctx.fillStyle = stepColors[st];
+    ctx.fill();
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = st === 0 ? '#8d6e63' : 'rgba(215, 204, 200, 0.22)';
+    ctx.stroke();
+  }
 
-  // קרן לייזר ההגנה הקלה המרחיקה תוקפים
+  // 3. קווי מדרגות ומגלשות היקפיות בכל הקצוות (כך שרואים מדרגות/מגלשה שעולים ויורדים עליהן מכל כיוון!)
+  const radialRamps = 16;
+  ctx.strokeStyle = 'rgba(161, 136, 127, 0.34)';
+  ctx.lineWidth = 2;
+  for (let k = 0; k < radialRamps; k++) {
+    const ang = (k / radialRamps) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(HOME_BASE.x + Math.cos(ang) * pitBottomR, HOME_BASE.y + stairSteps * 1.4 + Math.sin(ang) * pitBottomR);
+    ctx.lineTo(HOME_BASE.x + Math.cos(ang) * pitOuterR, HOME_BASE.y + Math.sin(ang) * pitOuterR);
+    ctx.stroke();
+  }
+
+  // 4. רצפת העומק של המחילה במרכז (אליה נופלים כשנכנסים וממנה מטפסים במדרגות החוצה)
+  const bottomGrad = ctx.createRadialGradient(
+    HOME_BASE.x, HOME_BASE.y + stairSteps * 1.4, 4,
+    HOME_BASE.x, HOME_BASE.y + stairSteps * 1.4, pitBottomR
+  );
+  bottomGrad.addColorStop(0, '#070403');
+  bottomGrad.addColorStop(0.7, '#120a08');
+  bottomGrad.addColorStop(1, '#1d110e');
+  ctx.beginPath();
+  ctx.arc(HOME_BASE.x, HOME_BASE.y + stairSteps * 1.4, pitBottomR, 0, Math.PI * 2);
+  ctx.fillStyle = bottomGrad;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255, 224, 178, 0.22)';
+  ctx.stroke();
+
+  // חיצי יציאה עדינים על המדרגות שמראים את העלייה החוצה מהמחילה
+  ctx.fillStyle = 'rgba(255, 224, 130, 0.35)';
+  for (let a = 0; a < 8; a++) {
+    const ang = (a / 8) * Math.PI * 2;
+    const midR = (pitBottomR + pitOuterR) * 0.54;
+    const ax = HOME_BASE.x + Math.cos(ang) * midR;
+    const ay = HOME_BASE.y + 4 + Math.sin(ang) * midR;
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(7, 0);
+    ctx.lineTo(-4, -5);
+    ctx.lineTo(-4, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // קרן לייזר ההגנה המרחיקה תוקפים
   if (burrowLaser.beamTimer > 0) {
     ctx.save();
     ctx.strokeStyle = '#ff5252';
     ctx.shadowColor = '#80d8ff';
     ctx.shadowBlur = 10;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3.5;
     ctx.beginPath();
     ctx.moveTo(burrowLaser.x, burrowLaser.y);
     ctx.lineTo(burrowLaser.targetX, burrowLaser.targetY);
     ctx.stroke();
     ctx.strokeStyle = '#e0f7fa';
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.4;
     ctx.stroke();
     ctx.restore();
   }
 
-  // משדר הלייזר הקטן היחיד המקיף את המחילה
+  // משדר הלייזר המקיף את קצה המחילה
   ctx.beginPath();
   ctx.arc(burrowLaser.x, burrowLaser.y, 9, 0, Math.PI * 2);
   ctx.fillStyle = '#37474f';
@@ -2658,8 +2808,8 @@ function draw() {
   ctx.fillStyle = '#ffe0b2';
   ctx.textAlign = 'center';
   const homeTitleLabel = homeExpansionLvl > 0
-    ? `🌿 מחילת הבית שלך (הרחבה ${homeExpansionLvl}/${MAX_HOME_EXPAND_LEVEL} + לייזר הרחקה)`
-    : '🌿 מחילת הבית שלך (מוגן + לייזר הרחקה)';
+    ? `🌿 מחילת הבית שלך (הרחבה ${homeExpansionLvl}/${MAX_HOME_EXPAND_LEVEL} + מדרגות יציאה ולייזר)`
+    : '🌿 מחילת הבית שלך (מדרגות יציאה + שומרים בקצוות + לייזר)';
   ctx.fillText(homeTitleLabel, HOME_BASE.x, HOME_BASE.y - HOME_BASE.radius - 14);
   ctx.restore();
 
@@ -2769,26 +2919,33 @@ function draw() {
     ctx.restore();
   }
 
-  // ציור הנחש של השחקן
+  // ציור הנחש של השחקן (כולל תחושת ירידה לעומק המחילה ועלייה במדרגות/מגלשה כשיוצאים!)
   const pStats = getPlayerStats();
   const pStyle = getSnakeSpeciesStyle(state.level);
+  const distFromHomeCenter = Math.hypot(player.x - HOME_BASE.x, player.y - HOME_BASE.y);
+  const pitEdgeRadius = Math.max(60, HOME_BASE.radius - 26);
+  const burrowDepthRatio = distFromHomeCenter < pitEdgeRadius
+    ? Math.max(0, 1 - distFromHomeCenter / pitEdgeRadius)
+    : 0;
+  const burrowSinkY = burrowDepthRatio * 14;
+  const burrowScaleFactor = 1 - burrowDepthRatio * 0.14;
 
   if (player.jumpZ > 0) {
     ctx.fillStyle = 'rgba(0,0,0,0.38)';
     ctx.beginPath();
-    ctx.arc(player.x, player.y + 12, pStats.radius, 0, Math.PI * 2);
+    ctx.arc(player.x, player.y + 12 + burrowSinkY, pStats.radius * burrowScaleFactor, 0, Math.PI * 2);
     ctx.fill();
   }
 
   ctx.save();
-  ctx.translate(0, -player.jumpZ * 2.2);
+  ctx.translate(0, -player.jumpZ * 2.2 + burrowSinkY);
   if (player.invulnerableTimer > 0 && Math.floor(player.invulnerableTimer / 5) % 2 === 0) {
     ctx.globalAlpha = 0.55;
   }
 
   drawSnakeBody(
     player.segments,
-    pStats.radius * (1 + player.jumpZ * 0.015),
+    pStats.radius * burrowScaleFactor * (1 + player.jumpZ * 0.015),
     pStyle.shape,
     pStyle.primary,
     pStyle.secondary,
@@ -2801,21 +2958,26 @@ function draw() {
     player.x,
     player.y,
     player.angle,
-    pStats.radius,
+    pStats.radius * burrowScaleFactor,
     state.upgrades.hasArtificialTeeth || player.biteAnim > 0,
     state.upgrades.hasLaserSuit
   );
   ctx.restore();
 
-  // תגית שם המין מתחת לנחש השחקן (שבאמת רואים איזה מין נחש אתה!)
+  // תגית שם המין מתחת לנחש השחקן (ומצב עלייה במדרגות המחילה כשנמצאים בתוכה!)
   ctx.save();
   ctx.font = 'bold 13px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = pStyle.glow || '#b9f6ca';
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.78)';
   ctx.lineWidth = 3;
-  const selfTag = `🐍 ${pStyle.name} (רמה ${state.level})`;
-  const selfTagY = player.y + pStats.radius + 18 - player.jumpZ * 1.4;
+  const burrowStepTag = burrowDepthRatio > 0.55
+    ? ' [בעומק המחילה 🕳️]'
+    : burrowDepthRatio > 0.08
+      ? ' [עולה במדרגות המחילה 🪜]'
+      : '';
+  const selfTag = `🐍 ${pStyle.name} (רמה ${state.level}/${MAX_PLAYER_LEVEL})${burrowStepTag}`;
+  const selfTagY = player.y + pStats.radius + 18 - player.jumpZ * 1.4 + burrowSinkY;
   ctx.strokeText(selfTag, player.x, selfTagY);
   ctx.fillText(selfTag, player.x, selfTagY);
   ctx.restore();
@@ -3860,7 +4022,7 @@ function updateHUD() {
   document.getElementById('worldNum').textContent = state.world;
   document.getElementById('worldBiome').textContent = currentWorldTheme ? `(${currentWorldTheme.name})` : '';
   document.getElementById('snakesLeft').textContent = bossSpawnedThisWorld ? '👑 בוס' : regularLeft;
-  document.getElementById('playerLevel').textContent = state.level;
+  document.getElementById('playerLevel').textContent = `${state.level}/${MAX_PLAYER_LEVEL}`;
   document.getElementById('shapeName').textContent = style.name;
   document.getElementById('moneyCount').textContent = state.money;
   document.getElementById('diamondCount').textContent = state.diamonds;
@@ -3869,9 +4031,9 @@ function updateHUD() {
   document.getElementById('hpBarFill').style.width = `${hpPct}%`;
   document.getElementById('hpText').textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
 
-  // עדכון חלונית רמה ושיא בצד המסך (עליית רמה כל 3 עולמות)
-  const lvlProg = state.levelProgress || 0;
-  document.getElementById('sideLevelNum').textContent = state.level;
+  // עדכון חלונית רמה ושיא בצד המסך (100 רמות - רמה 100 היא האנקונדה הענקית!)
+  const lvlProg = state.level >= MAX_PLAYER_LEVEL ? 3 : (state.levelProgress || 0);
+  document.getElementById('sideLevelNum').textContent = `${state.level}/${MAX_PLAYER_LEVEL}`;
   document.getElementById('sideShapeName').textContent = style.name;
   document.getElementById('xpCount').textContent = lvlProg;
   document.getElementById('xpNeed').textContent = '3';
@@ -5457,7 +5619,7 @@ if (isRunningAsApp() && installBtn) {
   installBtn.classList.add('hidden');
 }
 
-const APP_BUILD_VERSION = 'v11';
+const APP_BUILD_VERSION = 'v12';
 if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
   let _swRefreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -5465,7 +5627,7 @@ if ('serviceWorker' in navigator && window.location.protocol.startsWith('http'))
     _swRefreshing = true;
     window.location.reload();
   });
-  navigator.serviceWorker.register('./sw.js?v=11', { updateViaCache: 'none' }).then((reg) => {
+  navigator.serviceWorker.register('./sw.js?v=12', { updateViaCache: 'none' }).then((reg) => {
     reg.update().catch(() => {});
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') reg.update().catch(() => {});
@@ -5478,7 +5640,7 @@ try {
     localStorage.setItem('tgb_snake_build_ver', APP_BUILD_VERSION);
     if ('caches' in window) {
       caches.keys().then((keys) => Promise.all(
-        keys.filter((k) => k !== 'tgb-snake-world-pwa-v11').map((k) => caches.delete(k))
+        keys.filter((k) => k !== 'tgb-snake-world-pwa-v12').map((k) => caches.delete(k))
       ));
     }
   }

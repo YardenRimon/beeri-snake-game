@@ -1,7 +1,9 @@
 // ============================================================================
-// עולם הנחשים של בארי - מנוע המשחק (מותאם למובייל ולמחשב)
+// עולם הנחשים של טום גל ובארי - מנוע המשחק (מותאם למובייל ולמחשב)
 // ============================================================================
 
+const GAME_TITLE = 'עולם הנחשים של טום גל ובארי';
+document.title = GAME_TITLE;
 const SAVE_KEY = 'beeri_snake_game_save_v3';
 const LEGACY_SAVE_KEY = 'beeri_snake_game_save_v1';
 const LEGACY_SAVE_KEY_V2 = 'beeri_snake_game_save_v2';
@@ -5317,7 +5319,7 @@ document.getElementById('copyDuelLinkBtn').addEventListener('click', async () =>
 });
 document.getElementById('shareDuelWaBtn').addEventListener('click', () => {
   if (!duel.roomCode) return;
-  const txt = `בואו להילחם מולי (עד 4 שחקנים!) ב"עולם הנחשים של בארי"! לחצו להצטרפות: ${getDuelRoomUrl(duel.roomCode)}`;
+  const txt = `בואו להילחם מולי (עד 4 שחקנים!) ב"${GAME_TITLE}"! לחצו להצטרפות: ${getDuelRoomUrl(duel.roomCode)}`;
   window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank');
 });
 document.getElementById('startQrScanBtn').addEventListener('click', startQrScanner);

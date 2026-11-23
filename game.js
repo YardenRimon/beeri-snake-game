@@ -5457,6 +5457,7 @@ if (isRunningAsApp() && installBtn) {
   installBtn.classList.add('hidden');
 }
 
+const APP_BUILD_VERSION = 'v11';
 if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
   let _swRefreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -5464,13 +5465,24 @@ if ('serviceWorker' in navigator && window.location.protocol.startsWith('http'))
     _swRefreshing = true;
     window.location.reload();
   });
-  navigator.serviceWorker.register('./sw.js').then((reg) => {
+  navigator.serviceWorker.register('./sw.js?v=11', { updateViaCache: 'none' }).then((reg) => {
     reg.update().catch(() => {});
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') reg.update().catch(() => {});
     });
   }).catch(() => {});
 }
+try {
+  const prevBuild = localStorage.getItem('tgb_snake_build_ver');
+  if (prevBuild !== APP_BUILD_VERSION) {
+    localStorage.setItem('tgb_snake_build_ver', APP_BUILD_VERSION);
+    if ('caches' in window) {
+      caches.keys().then((keys) => Promise.all(
+        keys.filter((k) => k !== 'tgb-snake-world-pwa-v11').map((k) => caches.delete(k))
+      ));
+    }
+  }
+} catch (_) {}
 
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();

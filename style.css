@@ -55,6 +55,12 @@ body, html {
   white-space: nowrap;
 }
 
+.game-title-pill {
+  background: rgba(255, 214, 0, 0.16);
+  border-color: #ffd600;
+  color: #ffe082;
+}
+
 .world-pill {
   background: rgba(33, 150, 243, 0.25);
   border-color: #42a5f5;
